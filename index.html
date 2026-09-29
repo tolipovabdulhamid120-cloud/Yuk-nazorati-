@@ -143,13 +143,13 @@
       </div>
 
       <div class="form-group">
-        <label>Berilgan pul (so'm):</label>
-        <input type="number" id="paidAmount" placeholder="0" required>
+        <label>Berilgan pul (so'm) - Majburiy emas:</label>
+        <input type="number" id="paidAmount" placeholder="0">
       </div>
 
       <div class="form-group">
-        <label>Qarzdorlik (so'm):</label>
-        <input type="number" id="debtAmount" placeholder="0" required>
+        <label>Qarzdorlik (so'm) - Majburiy emas:</label>
+        <input type="number" id="debtAmount" placeholder="0">
       </div>
 
       <button type="submit" class="btn" id="saveBtn">Saqlash</button>
@@ -174,7 +174,7 @@
           </tr>
         </thead>
         <tbody id="tableBody">
-          <!-- Ma'lumotlar Firebase'dan yuklanadi -->
+          <!-- Ma'lumotlar yuklanadi -->
         </tbody>
         <tfoot>
           <tr>
@@ -189,22 +189,27 @@
   </div>
 
   <script>
-    // 1. TELEGRAM WEBAPP VA FIREBASE SOZLAMALARI
     const tg = window.Telegram.WebApp;
     tg.expand();
 
+    // Firebase sozlamasi (URL manzilini tekshiring)
     const firebaseConfig = {
-      databaseURL: "YOUR_FIREBASE_DATABASE_URL" // O'zingizning Firebase URL havolangizni joylang
+      databaseURL: "https://console.firebase.google.com/u/2/project/yuk-nazorati/database/yuk-nazorati-default-rtdb/data/~2F?hl=uz&utm_source=gemini"
     };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    
+    let db;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+    } catch(e) {
+      console.error("Firebase ulana olmadi:", e);
+    }
 
-    // ADMIN ID RO'YXATI
-    const ADMIN_IDS = [8081723573]; 
+    const ADMIN_IDS = [8081723573, 5186148503]; 
     const currentUserId = tg.initDataUnsafe?.user?.id;
     const isAdmin = ADMIN_IDS.includes(currentUserId);
 
-    // 2. OVOZLI KIRITISH (SPEECH RECOGNITION)
+    // OVOZLI KIRITISH
     function startVoice(inputId) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
@@ -225,13 +230,16 @@
       };
     }
 
-    // 3. MA'LUMOTLARNI SAQLASH VA TAHRIRLASH
+    // SAQLASH VA TAHRIRLASH
     document.getElementById('truckForm').addEventListener('submit', function(e) {
       e.preventDefault();
       
       const recordId = document.getElementById('recordId').value;
-      const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
-      const debt = parseFloat(document.getElementById('debtAmount').value) || 0;
+      const paidInput = document.getElementById('paidAmount').value;
+      const debtInput = document.getElementById('debtAmount').value;
+
+      const paid = paidInput !== "" ? parseFloat(paidInput) : 0;
+      const debt = debtInput !== "" ? parseFloat(debtInput) : 0;
 
       const recordData = {
         model: document.getElementById('modelName').value,
@@ -243,66 +251,72 @@
         updatedBy: currentUserId || 'User'
       };
 
-      if (recordId) {
-        db.ref('trucks/' + recordId).update(recordData, (err) => {
-          if (!err) resetForm();
-        });
-      } else {
-        db.ref('trucks').push(recordData, (err) => {
-          if (!err) resetForm();
-        });
+      if (db) {
+        if (recordId) {
+          db.ref('trucks/' + recordId).update(recordData, (err) => {
+            if (!err) resetForm();
+          });
+        } else {
+          db.ref('trucks').push(recordData, (err) => {
+            if (!err) resetForm();
+          });
+        }
       }
     });
 
-    // 4. ONLINE BAZADAN O'QISH VA UMUMIY SUMMALARNI HISOBLASH
-    db.ref('trucks').on('value', (snapshot) => {
-      const tbody = document.getElementById('tableBody');
-      tbody.innerHTML = '';
-      const data = snapshot.val();
+    // ONLINE BAZADAN O'QISH
+    if (db) {
+      db.ref('trucks').on('value', (snapshot) => {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        const data = snapshot.val();
 
-      let grandTotalPaid = 0;
-      let grandTotalDebt = 0;
+        let grandTotalPaid = 0;
+        let grandTotalDebt = 0;
 
-      for (let id in data) {
-        const item = data[id];
-        
-        const paid = item.paidAmount || 0;
-        const debt = item.debtAmount || 0;
+        if (data) {
+          for (let id in data) {
+            const item = data[id];
+            
+            const paid = item.paidAmount || 0;
+            const debt = item.debtAmount || 0;
 
-        grandTotalPaid += paid;
-        grandTotalDebt += debt;
+            grandTotalPaid += paid;
+            grandTotalDebt += debt;
 
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${item.date || ''}</td>
-          <td>${item.model}</td>
-          <td><b>${item.plate}</b></td>
-          <td>${item.driver}</td>
-          <td class="paid-text">${paid.toLocaleString()} so'm</td>
-          <td class="debt-text">${debt.toLocaleString()} so'm</td>
-          <td class="actions-cell">
-            <button class="action-btn btn-excel" onclick="editRecord('${id}')">✏️</button>
-            ${isAdmin ? `<button class="action-btn btn-danger" onclick="deleteRecord('${id}')">🗑️</button>` : ''}
-          </td>
-        `;
-        tbody.appendChild(tr);
-      }
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${item.date || ''}</td>
+              <td>${item.model}</td>
+              <td><b>${item.plate}</b></td>
+              <td>${item.driver}</td>
+              <td class="paid-text">${paid > 0 ? paid.toLocaleString() + " so'm" : '-'}</td>
+              <td class="debt-text">${debt > 0 ? debt.toLocaleString() + " so'm" : '-'}</td>
+              <td class="actions-cell">
+                <button class="action-btn btn-excel" onclick="editRecord('${id}')">✏️</button>
+                ${isAdmin ? `<button class="action-btn btn-danger" onclick="deleteRecord('${id}')">🗑️</button>` : ''}
+              </td>
+            `;
+            tbody.appendChild(tr);
+          }
+        }
 
-      // Pastki umumiy hisob-kitob qatori
-      document.getElementById('totalPaidSum').innerText = grandTotalPaid.toLocaleString() + " so'm";
-      document.getElementById('totalDebtSum').innerText = grandTotalDebt.toLocaleString() + " so'm";
-    });
+        document.getElementById('totalPaidSum').innerText = grandTotalPaid.toLocaleString() + " so'm";
+        document.getElementById('totalDebtSum').innerText = grandTotalDebt.toLocaleString() + " so'm";
+      });
+    }
 
-    // TAHRIRLASH REJIMI
+    // TAHRIRLASH
     window.editRecord = function(id) {
+      if (!db) return;
       db.ref('trucks/' + id).once('value', (snapshot) => {
         const item = snapshot.val();
         document.getElementById('recordId').value = id;
         document.getElementById('modelName').value = item.model;
         document.getElementById('plateNumber').value = item.plate;
         document.getElementById('driverName').value = item.driver;
-        document.getElementById('paidAmount').value = item.paidAmount;
-        document.getElementById('debtAmount').value = item.debtAmount;
+        document.getElementById('paidAmount').value = item.paidAmount || '';
+        document.getElementById('debtAmount').value = item.debtAmount || '';
         
         document.getElementById('formTitle').innerText = "Ma'lumotni tahrirlash";
         document.getElementById('saveBtn').innerText = "Yangilash";
@@ -310,8 +324,9 @@
       });
     };
 
-    // O'CHIRISH (Admin uchun)
+    // O'CHIRISH
     window.deleteRecord = function(id) {
+      if (!db) return;
       if (confirm("Haqiqatan ham ushbu ma'lumotni o'chirmoqchisiz?")) {
         db.ref('trucks/' + id).remove();
       }
