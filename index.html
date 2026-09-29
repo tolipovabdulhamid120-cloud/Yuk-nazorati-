@@ -6,7 +6,7 @@
   <title>Yuk Nazorati Mini App</title>
   <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- SheetJS для экспорта в Excel -->
+  <!-- SheetJS Excel export uchun -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -46,15 +46,15 @@
       margin-bottom: 4px;
       font-weight: 600;
     }
-    input, select {
+    input {
       width: 100%;
       padding: 10px;
+      padding-right: 45px;
       border: 1px solid #ccc;
       border-radius: 8px;
       box-sizing: border-box;
       font-size: 14px;
     }
-    /* Автоматический uppercase для номера машины */
     #plateNumber {
       text-transform: uppercase;
       font-weight: bold;
@@ -68,7 +68,7 @@
       border: none;
       border-radius: 6px;
       padding: 6px 10px;
-      font-size: 12px;
+      font-size: 14px;
       cursor: pointer;
     }
     .btn {
@@ -83,7 +83,7 @@
       cursor: pointer;
       margin-top: 8px;
     }
-    .btn-excel { background: #27ae60; }
+    .btn-excel { background: #27ae60; margin-bottom: 10px; }
     .btn-danger { background: var(--danger-color); }
     .btn-cancel { background: #7f8c8d; }
     
@@ -99,6 +99,10 @@
       text-align: left;
     }
     th { background-color: #f2f2f2; }
+    tfoot tr {
+      background-color: #eaf2f8;
+      font-weight: bold;
+    }
     .debt-text { color: var(--danger-color); font-weight: bold; }
     .paid-text { color: var(--success-color); font-weight: bold; }
     .action-btn {
@@ -139,18 +143,13 @@
       </div>
 
       <div class="form-group">
-        <label>Yuk narxi (so'm):</label>
-        <input type="number" id="totalPrice" placeholder="0" required oninput="calculateBalance()">
-      </div>
-
-      <div class="form-group">
         <label>Berilgan pul (so'm):</label>
-        <input type="number" id="paidAmount" placeholder="0" required oninput="calculateBalance()">
+        <input type="number" id="paidAmount" placeholder="0" required>
       </div>
 
       <div class="form-group">
-        <label>Hisob-kitob holati:</label>
-        <input type="text" id="balanceResult" readonly placeholder="Avtomatik hisoblanadi">
+        <label>Qarzdorlik (so'm):</label>
+        <input type="number" id="debtAmount" placeholder="0" required>
       </div>
 
       <button type="submit" class="btn" id="saveBtn">Saqlash</button>
@@ -169,8 +168,7 @@
             <th>Model</th>
             <th>Nomer</th>
             <th>Haydovchi</th>
-            <th>Jami</th>
-            <th>To'landi</th>
+            <th>Berilgan pul</th>
             <th>Qarzdorlik</th>
             <th>Amallar</th>
           </tr>
@@ -178,6 +176,14 @@
         <tbody id="tableBody">
           <!-- Ma'lumotlar Firebase'dan yuklanadi -->
         </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" style="text-align: right;">JAMI UMUMIY:</td>
+            <td id="totalPaidSum" class="paid-text">0 so'm</td>
+            <td id="totalDebtSum" class="debt-text">0 so'm</td>
+            <td></td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   </div>
@@ -187,38 +193,18 @@
     const tg = window.Telegram.WebApp;
     tg.expand();
 
-    // CRM / Firebase Config
     const firebaseConfig = {
-      databaseURL: "YOUR_FIREBASE_DATABASE_URL" // Bu yerga Firebase URL'ingizni qo'ying
+      databaseURL: "YOUR_FIREBASE_DATABASE_URL" // O'zingizning Firebase URL havolangizni joylang
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // ADMIN TIZIMI: Admin Telegram ID'larini kiriting
+    // ADMIN ID RO'YXATI
     const ADMIN_IDS = [8081723573]; 
     const currentUserId = tg.initDataUnsafe?.user?.id;
     const isAdmin = ADMIN_IDS.includes(currentUserId);
 
-    // 2. QARZDORLIKNI AVTOMATIK HISOBLASH
-    function calculateBalance() {
-      const total = parseFloat(document.getElementById('totalPrice').value) || 0;
-      const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
-      const diff = total - paid;
-      const resultInput = document.getElementById('balanceResult');
-
-      if (diff > 0) {
-        resultInput.value = `Qarzdorlik: ${diff.toLocaleString()} so'm`;
-        resultInput.className = "debt-text";
-      } else if (diff < 0) {
-        resultInput.value = `Qaytarish kerak: ${Math.abs(diff).toLocaleString()} so'm`;
-        resultInput.className = "paid-text";
-      } else {
-        resultInput.value = "To'liq to'landi";
-        resultInput.className = "paid-text";
-      }
-    }
-
-    // 3. OVOZLI KIRITISH (SPEECH RECOGNITION)
+    // 2. OVOZLI KIRITISH (SPEECH RECOGNITION)
     function startVoice(inputId) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
@@ -226,7 +212,7 @@
         return;
       }
       const recognition = new SpeechRecognition();
-      recognition.lang = 'uz-UZ'; // O'zbek tili
+      recognition.lang = 'uz-UZ';
       recognition.start();
 
       recognition.onresult = function(event) {
@@ -239,56 +225,61 @@
       };
     }
 
-    // 4. FIREBASE'GA SAQLASH VA TAHRIRLASH
+    // 3. MA'LUMOTLARNI SAQLASH VA TAHRIRLASH
     document.getElementById('truckForm').addEventListener('submit', function(e) {
       e.preventDefault();
       
       const recordId = document.getElementById('recordId').value;
-      const total = parseFloat(document.getElementById('totalPrice').value) || 0;
       const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
+      const debt = parseFloat(document.getElementById('debtAmount').value) || 0;
 
       const recordData = {
         model: document.getElementById('modelName').value,
         plate: document.getElementById('plateNumber').value.toUpperCase(),
         driver: document.getElementById('driverName').value,
-        totalPrice: total,
         paidAmount: paid,
-        debt: total - paid,
+        debtAmount: debt,
         date: new Date().toLocaleString('uz-UZ'),
         updatedBy: currentUserId || 'User'
       };
 
       if (recordId) {
-        // Tahrirlash
         db.ref('trucks/' + recordId).update(recordData, (err) => {
           if (!err) resetForm();
         });
       } else {
-        // Yangi qo'shish
         db.ref('trucks').push(recordData, (err) => {
           if (!err) resetForm();
         });
       }
     });
 
-    // 5. MA'LUMOTLARNI ONLINE O'QISH
+    // 4. ONLINE BAZADAN O'QISH VA UMUMIY SUMMALARNI HISOBLASH
     db.ref('trucks').on('value', (snapshot) => {
       const tbody = document.getElementById('tableBody');
       tbody.innerHTML = '';
       const data = snapshot.val();
 
+      let grandTotalPaid = 0;
+      let grandTotalDebt = 0;
+
       for (let id in data) {
         const item = data[id];
-        const tr = document.createElement('tr');
         
+        const paid = item.paidAmount || 0;
+        const debt = item.debtAmount || 0;
+
+        grandTotalPaid += paid;
+        grandTotalDebt += debt;
+
+        const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${item.date || ''}</td>
           <td>${item.model}</td>
           <td><b>${item.plate}</b></td>
           <td>${item.driver}</td>
-          <td>${item.totalPrice.toLocaleString()}</td>
-          <td>${item.paidAmount.toLocaleString()}</td>
-          <td class="${item.debt > 0 ? 'debt-text' : 'paid-text'}">${item.debt.toLocaleString()}</td>
+          <td class="paid-text">${paid.toLocaleString()} so'm</td>
+          <td class="debt-text">${debt.toLocaleString()} so'm</td>
           <td class="actions-cell">
             <button class="action-btn btn-excel" onclick="editRecord('${id}')">✏️</button>
             ${isAdmin ? `<button class="action-btn btn-danger" onclick="deleteRecord('${id}')">🗑️</button>` : ''}
@@ -296,9 +287,13 @@
         `;
         tbody.appendChild(tr);
       }
+
+      // Pastki umumiy hisob-kitob qatori
+      document.getElementById('totalPaidSum').innerText = grandTotalPaid.toLocaleString() + " so'm";
+      document.getElementById('totalDebtSum').innerText = grandTotalDebt.toLocaleString() + " so'm";
     });
 
-    // Tahrirlash rejimiga o'tish
+    // TAHRIRLASH REJIMI
     window.editRecord = function(id) {
       db.ref('trucks/' + id).once('value', (snapshot) => {
         const item = snapshot.val();
@@ -306,17 +301,16 @@
         document.getElementById('modelName').value = item.model;
         document.getElementById('plateNumber').value = item.plate;
         document.getElementById('driverName').value = item.driver;
-        document.getElementById('totalPrice').value = item.totalPrice;
         document.getElementById('paidAmount').value = item.paidAmount;
+        document.getElementById('debtAmount').value = item.debtAmount;
         
-        calculateBalance();
         document.getElementById('formTitle').innerText = "Ma'lumotni tahrirlash";
         document.getElementById('saveBtn').innerText = "Yangilash";
         document.getElementById('cancelBtn').style.display = "block";
       });
     };
 
-    // Ochirish (Faqat Adminlar uchun)
+    // O'CHIRISH (Admin uchun)
     window.deleteRecord = function(id) {
       if (confirm("Haqiqatan ham ushbu ma'lumotni o'chirmoqchisiz?")) {
         db.ref('trucks/' + id).remove();
@@ -329,10 +323,9 @@
       document.getElementById('formTitle').innerText = "Yangi yuk qo'shish";
       document.getElementById('saveBtn').innerText = "Saqlash";
       document.getElementById('cancelBtn').style.display = "none";
-      document.getElementById('balanceResult').value = '';
     }
 
-    // 6. EXCEL'GA YUKLASH
+    // EXCEL YUKLAB OLISH
     function exportToExcel() {
       const table = document.getElementById("dataTable");
       const wb = XLSX.utils.table_to_book(table, { sheet: "Yuklar" });
