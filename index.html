@@ -1,130 +1,343 @@
 <!DOCTYPE html>
 <html lang="uz">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Yuk va Qarz Nazorati</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yuk Nazorati Mini App</title>
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!-- SheetJS для экспорта в Excel -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #f4f6f9;
+      --card-bg: #ffffff;
+      --text-color: #333333;
+      --primary-color: #2481cc;
+      --danger-color: #e74c3c;
+      --success-color: #2ecc71;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 12px;
+    }
+    .card {
+      background: var(--card-bg);
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 16px;
+    }
+    h2, h3 { margin-top: 0; color: var(--primary-color); }
+    .form-group {
+      margin-bottom: 12px;
+      position: relative;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    /* Автоматический uppercase для номера машины */
+    #plateNumber {
+      text-transform: uppercase;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+    .voice-btn {
+      position: absolute;
+      right: 5px;
+      top: 24px;
+      background: #e0e0e0;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .btn {
+      width: 100%;
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .btn-excel { background: #27ae60; }
+    .btn-danger { background: var(--danger-color); }
+    .btn-cancel { background: #7f8c8d; }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 12px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th { background-color: #f2f2f2; }
+    .debt-text { color: var(--danger-color); font-weight: bold; }
+    .paid-text { color: var(--success-color); font-weight: bold; }
+    .action-btn {
+      padding: 4px 8px;
+      font-size: 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: white;
+      margin-right: 2px;
+    }
+    .actions-cell { white-space: nowrap; }
+  </style>
 </head>
-<body class="bg-gray-100 font-sans pb-10">
-    <div class="container mx-auto p-4 max-w-md">
-        <h1 class="text-2xl font-bold text-blue-600 text-center mb-2">🚛 Yuk va Qarz Nazorati</h1>
-        <p id="userInfo" class="text-xs text-gray-500 text-center mb-4">Yuklanmoqda...</p>
+<body>
 
-        <!-- Forma -->
-        <div class="bg-white p-4 rounded-xl shadow-md mb-4">
-            <form id="loadForm" class="space-y-3">
-                <div>
-                    <label class="text-sm font-medium">Mashina Raqami:</label>
-                    <input type="text" id="carNumber" required placeholder="01A777AA" class="w-full p-2 border rounded uppercase font-bold" oninput="this.value = this.value.toUpperCase()">
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="text-xs">Qatnov:</label>
-                        <input type="number" id="tripAdd" value="1" class="w-full p-2 border rounded text-center">
-                    </div>
-                    <div>
-                        <label class="text-xs">Qarz (so'm):</label>
-                        <input type="number" id="debtAdd" placeholder="0" class="w-full p-2 border rounded">
-                    </div>
-                </div>
-                <div>
-                    <label class="text-xs">To'lov (so'm):</label>
-                    <input type="number" id="cashAdd" placeholder="0" class="w-full p-2 border rounded">
-                </div>
-                <button type="submit" class="w-full bg-blue-600 text-white font-bold p-3 rounded">Saqlash</button>
-            </form>
-        </div>
+  <div class="card">
+    <h2 id="formTitle">Yangi yuk qo'shish</h2>
+    <form id="truckForm">
+      <input type="hidden" id="recordId">
+      
+      <div class="form-group">
+        <label>Avtomobil modeli:</label>
+        <input type="text" id="modelName" placeholder="Masalan: MAN, HOWO, KamAZ" required>
+        <button type="button" class="voice-btn" onclick="startVoice('modelName')">🎙</button>
+      </div>
 
-        <!-- Jadval -->
-        <div class="bg-white p-4 rounded-xl shadow-md">
-            <h2 class="text-lg font-semibold mb-2">Bugungi ro'yxat</h2>
-            <table class="w-full text-xs border-collapse">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th class="p-2 text-left">Mashina</th>
-                        <th class="p-2 text-center">Qatnov</th>
-                        <th class="p-2 text-right">Qarz</th>
-                        <th class="p-2 text-right">To'ladi</th>
-                        <th class="p-2 text-right">Qoldiq</th>
-                    </tr>
-                </thead>
-                <tbody id="loadTableBody"></tbody>
-            </table>
-        </div>
+      <div class="form-group">
+        <label>Avtomobil raqami (Katta harflarda):</label>
+        <input type="text" id="plateNumber" placeholder="01 A 777 AA" required oninput="this.value = this.value.toUpperCase()">
+        <button type="button" class="voice-btn" onclick="startVoice('plateNumber')">🎙</button>
+      </div>
+
+      <div class="form-group">
+        <label>Haydovchi ismi / F.I.Sh:</label>
+        <input type="text" id="driverName" placeholder="Ismini kiriting" required>
+        <button type="button" class="voice-btn" onclick="startVoice('driverName')">🎙</button>
+      </div>
+
+      <div class="form-group">
+        <label>Yuk narxi (so'm):</label>
+        <input type="number" id="totalPrice" placeholder="0" required oninput="calculateBalance()">
+      </div>
+
+      <div class="form-group">
+        <label>Berilgan pul (so'm):</label>
+        <input type="number" id="paidAmount" placeholder="0" required oninput="calculateBalance()">
+      </div>
+
+      <div class="form-group">
+        <label>Hisob-kitob holati:</label>
+        <input type="text" id="balanceResult" readonly placeholder="Avtomatik hisoblanadi">
+      </div>
+
+      <button type="submit" class="btn" id="saveBtn">Saqlash</button>
+      <button type="button" class="btn btn-cancel" id="cancelBtn" style="display:none;" onclick="resetForm()">Bekor qilish</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>Yuklamalar ro'yxati</h3>
+    <button class="btn btn-excel" onclick="exportToExcel()">📊 Excel formatida yuklab olish</button>
+    <div style="overflow-x:auto;">
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th>Sana</th>
+            <th>Model</th>
+            <th>Nomer</th>
+            <th>Haydovchi</th>
+            <th>Jami</th>
+            <th>To'landi</th>
+            <th>Qarzdorlik</th>
+            <th>Amallar</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <!-- Ma'lumotlar Firebase'dan yuklanadi -->
+        </tbody>
+      </table>
     </div>
+  </div>
 
-    <script>
-        // Siz yuborgan Realtime Database manzili avtomatik ulandi
-        const firebaseConfig = {
-            databaseURL: "https://yuk-nazorati-default-rtdb.firebaseio.com"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+  <script>
+    // 1. TELEGRAM WEBAPP VA FIREBASE SOZLAMALARI
+    const tg = window.Telegram.WebApp;
+    tg.expand();
 
-        // --- O'Z TELEGRAM ID RAQAMINGIZNI SHU YERGA YOZING ---
-        const ADMIN_IDS = [8081723573]; 
+    // CRM / Firebase Config
+    const firebaseConfig = {
+      databaseURL: "YOUR_FIREBASE_DATABASE_URL" // Bu yerga Firebase URL'ingizni qo'ying
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-        let tg = window.Telegram.WebApp;
-        tg.expand();
-        let user = tg.initDataUnsafe?.user;
-        let userId = user ? user.id : null;
-        let userName = user ? user.first_name : "Mehmon";
-        document.getElementById('userInfo').textContent = `Foydalanuvchi: ${userName}`;
+    // ADMIN TIZIMI: Admin Telegram ID'larini kiriting
+    const ADMIN_IDS = [123456789, 987654321]; 
+    const currentUserId = tg.initDataUnsafe?.user?.id;
+    const isAdmin = ADMIN_IDS.includes(currentUserId);
 
-        let isAdmin = ADMIN_IDS.includes(userId);
+    // 2. QARZDORLIKNI AVTOMATIK HISOBLASH
+    function calculateBalance() {
+      const total = parseFloat(document.getElementById('totalPrice').value) || 0;
+      const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
+      const diff = total - paid;
+      const resultInput = document.getElementById('balanceResult');
 
-        const form = document.getElementById('loadForm');
-        const tableBody = document.getElementById('loadTableBody');
+      if (diff > 0) {
+        resultInput.value = `Qarzdorlik: ${diff.toLocaleString()} so'm`;
+        resultInput.className = "debt-text";
+      } else if (diff < 0) {
+        resultInput.value = `Qaytarish kerak: ${Math.abs(diff).toLocaleString()} so'm`;
+        resultInput.className = "paid-text";
+      } else {
+        resultInput.value = "To'liq to'landi";
+        resultInput.className = "paid-text";
+      }
+    }
 
-        db.ref("trucks").on("value", (snapshot) => {
-            let data = snapshot.val();
-            let allData = [];
-            if (data) {
-                Object.keys(data).forEach(key => {
-                    allData.push({ id: key, ...data[key] });
-                });
-            }
-            renderTable(allData);
-        });
+    // 3. OVOZLI KIRITISH (SPEECH RECOGNITION)
+    function startVoice(inputId) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("Qurilmangizda ovozli kiritish qo'llab-quvvatlanmaydi.");
+        return;
+      }
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'uz-UZ'; // O'zbek tili
+      recognition.start();
 
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const todayStr = new Date().toISOString().split('T')[0];
-            
-            const newRef = db.ref("trucks").push();
-            newRef.set({
-                dateOnly: todayStr,
-                user: userName,
-                userId: userId,
-                carNumber: document.getElementById('carNumber').value.toUpperCase(),
-                tripCount: parseInt(document.getElementById('tripAdd').value) || 0,
-                debt: parseFloat(document.getElementById('debtAdd').value) || 0,
-                cash: parseFloat(document.getElementById('cashAdd').value) || 0
-            }).then(() => form.reset());
-        });
-
-        function renderTable(data) {
-            tableBody.innerHTML = '';
-            const todayStr = new Date().toISOString().split('T')[0];
-            let filtered = data.filter(item => item.dateOnly === todayStr && (isAdmin || item.userId === userId));
-
-            filtered.forEach(item => {
-                let balance = item.debt - item.cash;
-                if (balance < 0) balance = 0;
-                tableBody.innerHTML += `
-                    <tr class="border-b">
-                        <td class="p-2 font-bold">${item.carNumber}<br><span class="text-[10px] text-gray-400">(${item.user})</span></td>
-                        <td class="p-2 text-center">${item.tripCount}</td>
-                        <td class="p-2 text-right text-red-600">${item.debt.toLocaleString()}</td>
-                        <td class="p-2 text-right text-green-600">${item.cash.toLocaleString()}</td>
-                        <td class="p-2 text-right font-bold text-red-700">${balance.toLocaleString()}</td>
-                    </tr>`;
-            });
+      recognition.onresult = function(event) {
+        let transcript = event.results[0][0].transcript;
+        const inputElem = document.getElementById(inputId);
+        if (inputId === 'plateNumber') {
+          transcript = transcript.toUpperCase().replace(/\s+/g, '');
         }
-    </script>
+        inputElem.value = transcript;
+      };
+    }
+
+    // 4. FIREBASE'GA SAQLASH VA TAHRIRLASH
+    document.getElementById('truckForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const recordId = document.getElementById('recordId').value;
+      const total = parseFloat(document.getElementById('totalPrice').value) || 0;
+      const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
+
+      const recordData = {
+        model: document.getElementById('modelName').value,
+        plate: document.getElementById('plateNumber').value.toUpperCase(),
+        driver: document.getElementById('driverName').value,
+        totalPrice: total,
+        paidAmount: paid,
+        debt: total - paid,
+        date: new Date().toLocaleString('uz-UZ'),
+        updatedBy: currentUserId || 'User'
+      };
+
+      if (recordId) {
+        // Tahrirlash
+        db.ref('trucks/' + recordId).update(recordData, (err) => {
+          if (!err) resetForm();
+        });
+      } else {
+        // Yangi qo'shish
+        db.ref('trucks').push(recordData, (err) => {
+          if (!err) resetForm();
+        });
+      }
+    });
+
+    // 5. MA'LUMOTLARNI ONLINE O'QISH
+    db.ref('trucks').on('value', (snapshot) => {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+      const data = snapshot.val();
+
+      for (let id in data) {
+        const item = data[id];
+        const tr = document.createElement('tr');
+        
+        tr.innerHTML = `
+          <td>${item.date || ''}</td>
+          <td>${item.model}</td>
+          <td><b>${item.plate}</b></td>
+          <td>${item.driver}</td>
+          <td>${item.totalPrice.toLocaleString()}</td>
+          <td>${item.paidAmount.toLocaleString()}</td>
+          <td class="${item.debt > 0 ? 'debt-text' : 'paid-text'}">${item.debt.toLocaleString()}</td>
+          <td class="actions-cell">
+            <button class="action-btn btn-excel" onclick="editRecord('${id}')">✏️</button>
+            ${isAdmin ? `<button class="action-btn btn-danger" onclick="deleteRecord('${id}')">🗑️</button>` : ''}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      }
+    });
+
+    // Tahrirlash rejimiga o'tish
+    window.editRecord = function(id) {
+      db.ref('trucks/' + id).once('value', (snapshot) => {
+        const item = snapshot.val();
+        document.getElementById('recordId').value = id;
+        document.getElementById('modelName').value = item.model;
+        document.getElementById('plateNumber').value = item.plate;
+        document.getElementById('driverName').value = item.driver;
+        document.getElementById('totalPrice').value = item.totalPrice;
+        document.getElementById('paidAmount').value = item.paidAmount;
+        
+        calculateBalance();
+        document.getElementById('formTitle').innerText = "Ma'lumotni tahrirlash";
+        document.getElementById('saveBtn').innerText = "Yangilash";
+        document.getElementById('cancelBtn').style.display = "block";
+      });
+    };
+
+    // Ochirish (Faqat Adminlar uchun)
+    window.deleteRecord = function(id) {
+      if (confirm("Haqiqatan ham ushbu ma'lumotni o'chirmoqchisiz?")) {
+        db.ref('trucks/' + id).remove();
+      }
+    };
+
+    function resetForm() {
+      document.getElementById('truckForm').reset();
+      document.getElementById('recordId').value = '';
+      document.getElementById('formTitle').innerText = "Yangi yuk qo'shish";
+      document.getElementById('saveBtn').innerText = "Saqlash";
+      document.getElementById('cancelBtn').style.display = "none";
+      document.getElementById('balanceResult').value = '';
+    }
+
+    // 6. EXCEL'GA YUKLASH
+    function exportToExcel() {
+      const table = document.getElementById("dataTable");
+      const wb = XLSX.utils.table_to_book(table, { sheet: "Yuklar" });
+      XLSX.writeFile(wb, `Yuk_Nazorati_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+  </script>
 </body>
 </html>
