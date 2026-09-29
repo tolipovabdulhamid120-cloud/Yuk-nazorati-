@@ -4,11 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Yuk Nazorati Mini App</title>
-  <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- SheetJS Excel export uchun -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -174,7 +171,6 @@
           </tr>
         </thead>
         <tbody id="tableBody">
-          <!-- Ma'lumotlar yuklanadi -->
         </tbody>
         <tfoot>
           <tr>
@@ -192,20 +188,15 @@
     const tg = window.Telegram.WebApp;
     tg.expand();
 
-    // Firebase sozlamasi (URL manzilini tekshiring)
+    // Firebase aniq sozlamasi
     const firebaseConfig = {
-      databaseURL: "https://console.firebase.google.com/u/2/project/yuk-nazorati/database/yuk-nazorati-default-rtdb/data/~2F?hl=uz&utm_source=gemini"
+      databaseURL: "https://yuk-nazorati-default-rtdb.firebaseio.com/"
     };
     
-    let db;
-    try {
-      firebase.initializeApp(firebaseConfig);
-      db = firebase.database();
-    } catch(e) {
-      console.error("Firebase ulana olmadi:", e);
-    }
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-    const ADMIN_IDS = [8081723573, 5186148503]; 
+    const ADMIN_IDS = [123456789, 987654321]; 
     const currentUserId = tg.initDataUnsafe?.user?.id;
     const isAdmin = ADMIN_IDS.includes(currentUserId);
 
@@ -230,7 +221,7 @@
       };
     }
 
-    // SAQLASH VA TAHRIRLASH
+    // SAQLASH
     document.getElementById('truckForm').addEventListener('submit', function(e) {
       e.preventDefault();
       
@@ -251,64 +242,61 @@
         updatedBy: currentUserId || 'User'
       };
 
-      if (db) {
-        if (recordId) {
-          db.ref('trucks/' + recordId).update(recordData, (err) => {
-            if (!err) resetForm();
-          });
-        } else {
-          db.ref('trucks').push(recordData, (err) => {
-            if (!err) resetForm();
-          });
-        }
+      if (recordId) {
+        db.ref('trucks/' + recordId).update(recordData, (err) => {
+          if (err) alert("Xatolik: " + err.message);
+          else resetForm();
+        });
+      } else {
+        db.ref('trucks').push(recordData, (err) => {
+          if (err) alert("Xatolik: " + err.message);
+          else resetForm();
+        });
       }
     });
 
-    // ONLINE BAZADAN O'QISH
-    if (db) {
-      db.ref('trucks').on('value', (snapshot) => {
-        const tbody = document.getElementById('tableBody');
-        tbody.innerHTML = '';
-        const data = snapshot.val();
+    // ONLINE O'QISH
+    db.ref('trucks').on('value', (snapshot) => {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+      const data = snapshot.val();
 
-        let grandTotalPaid = 0;
-        let grandTotalDebt = 0;
+      let grandTotalPaid = 0;
+      let grandTotalDebt = 0;
 
-        if (data) {
-          for (let id in data) {
-            const item = data[id];
-            
-            const paid = item.paidAmount || 0;
-            const debt = item.debtAmount || 0;
+      if (data) {
+        for (let id in data) {
+          const item = data[id];
+          
+          const paid = item.paidAmount || 0;
+          const debt = item.debtAmount || 0;
 
-            grandTotalPaid += paid;
-            grandTotalDebt += debt;
+          grandTotalPaid += paid;
+          grandTotalDebt += debt;
 
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td>${item.date || ''}</td>
-              <td>${item.model}</td>
-              <td><b>${item.plate}</b></td>
-              <td>${item.driver}</td>
-              <td class="paid-text">${paid > 0 ? paid.toLocaleString() + " so'm" : '-'}</td>
-              <td class="debt-text">${debt > 0 ? debt.toLocaleString() + " so'm" : '-'}</td>
-              <td class="actions-cell">
-                <button class="action-btn btn-excel" onclick="editRecord('${id}')">✏️</button>
-                ${isAdmin ? `<button class="action-btn btn-danger" onclick="deleteRecord('${id}')">🗑️</button>` : ''}
-              </td>
-            `;
-            tbody.appendChild(tr);
-          }
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${item.date || ''}</td>
+            <td>${item.model}</td>
+            <td><b>${item.plate}</b></td>
+            <td>${item.driver}</td>
+            <td class="paid-text">${paid > 0 ? paid.toLocaleString() + " so'm" : '-'}</td>
+            <td class="debt-text">${debt > 0 ? debt.toLocaleString() + " so'm" : '-'}</td>
+            <td class="actions-cell">
+              <button class="action-btn btn-excel" onclick="editRecord('${id}')">✏️</button>
+              ${isAdmin ? `<button class="action-btn btn-danger" onclick="deleteRecord('${id}')">🗑️</button>` : ''}
+            </td>
+          `;
+          tbody.appendChild(tr);
         }
+      }
 
-        document.getElementById('totalPaidSum').innerText = grandTotalPaid.toLocaleString() + " so'm";
-        document.getElementById('totalDebtSum').innerText = grandTotalDebt.toLocaleString() + " so'm";
-      });
-    }
+      document.getElementById('totalPaidSum').innerText = grandTotalPaid.toLocaleString() + " so'm";
+      document.getElementById('totalDebtSum').innerText = grandTotalDebt.toLocaleString() + " so'm";
+    });
 
     // TAHRIRLASH
     window.editRecord = function(id) {
-      if (!db) return;
       db.ref('trucks/' + id).once('value', (snapshot) => {
         const item = snapshot.val();
         document.getElementById('recordId').value = id;
@@ -326,7 +314,6 @@
 
     // O'CHIRISH
     window.deleteRecord = function(id) {
-      if (!db) return;
       if (confirm("Haqiqatan ham ushbu ma'lumotni o'chirmoqchisiz?")) {
         db.ref('trucks/' + id).remove();
       }
