@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Yuk Nazorati Mini App</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -76,8 +75,7 @@
       cursor: pointer;
       margin-top: 8px;
     }
-    .btn-excel { background: #27ae60; margin-bottom: 6px; }
-    .btn-send { background: #8e44ad; margin-bottom: 10px; }
+    .btn-copy { background: #27ae60; margin-bottom: 10px; }
     .btn-danger { background: var(--danger-color); }
     .btn-cancel { background: #7f8c8d; }
     
@@ -150,9 +148,8 @@
 
   <div class="card">
     <h3>Yuklamalar ro'yxati</h3>
-    <!-- Excel tugmalari -->
-    <button class="btn btn-excel" onclick="exportToExcel()">📥 Brauzer orqali yuklab olish (.XLSX)</button>
-    <button class="btn btn-send" onclick="sendToTelegramChat()">📩 Telegram chatga hisobotni yuborish</button>
+    <!-- Nusxalash tugmasi -->
+    <button class="btn btn-copy" onclick="copyTableForExcel()">📋 Excel uchun jadvalni nusxalash</button>
     
     <div style="overflow-x:auto;">
       <table id="dataTable">
@@ -261,7 +258,7 @@
           <td class="paid-text">${paid > 0 ? paid.toLocaleString() + " so'm" : '-'}</td>
           <td class="debt-text">${debt > 0 ? debt.toLocaleString() + " so'm" : '-'}</td>
           <td class="actions-cell">
-            <button class="action-btn btn-excel" onclick="editRecord('${id}')">✏️</button>
+            <button class="action-btn btn-copy" onclick="editRecord('${id}')">✏️</button>
             <button class="action-btn btn-danger" onclick="deleteRecord('${id}')">🗑️</button>
           </td>
         `;
@@ -300,81 +297,35 @@
       document.getElementById('cancelBtn').style.display = "none";
     }
 
-    // 1. BRAUZERDA EXCEL YUKLASH (URL YARATISH ORQALI)
-    function exportToExcel() {
+    // EXCEL UCHUN NUSXALASH FUNKSIYASI (ISHONCHLI)
+    function copyTableForExcel() {
       if (Object.keys(allTruckData).length === 0) {
         alert("Ma'lumot yo'q!");
         return;
       }
 
-      const excelData = [];
-      for (let id in allTruckData) {
-        const item = allTruckData[id];
-        excelData.push({
-          "Sana": item.date || '',
-          "Model": item.model || '',
-          "Nomer": item.plate || '',
-          "Haydovchi": item.driver || '',
-          "Berilgan pul": item.paidAmount || 0,
-          "Qarzdorlik": item.debtAmount || 0
-        });
-      }
-
-      const worksheet = XLSX.utils.json_to_sheet(excelData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Yuklar");
-
-      // Telegram Mini App xavfsizligini chetlab o'tib brauzer orqali yuklash
-      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'binary' });
-      function s2ab(s) {
-        const buf = new ArrayBuffer(s.length);
-        const view = new Uint8Array(buf);
-        for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
-        return buf;
-      }
-      
-      const blob = new Blob([s2ab(wbout)], { type: "application/octet-stream" });
-      const url = URL.createObjectURL(blob);
-      
-      // Tashqi brauzerda yuklash havolasini ochish
-      if (tg && tg.openLink) {
-        tg.openLink(url);
-      } else {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `Yuk_Nazorati_${new Date().toISOString().slice(0,10)}.xlsx`;
-        a.click();
-      }
-    }
-
-    // 2. TELEGRAM CHATGA HISOBOT YUBORISH
-    function sendToTelegramChat() {
-      if (Object.keys(allTruckData).length === 0) {
-        alert("Ma'lumot yo'q!");
-        return;
-      }
-
-      let reportText = "📊 **YUK NAZORATI HISOBOTI**\n\n";
-      let tPaid = 0, tDebt = 0;
+      let text = "Sana\tModel\tNomer\tHaydovchi\tBerilgan pul\tQarzdorlik\n";
+      let totalPaid = 0, totalDebt = 0;
 
       for (let id in allTruckData) {
         const item = allTruckData[id];
         const paid = item.paidAmount || 0;
         const debt = item.debtAmount || 0;
-        tPaid += paid;
-        tDebt += debt;
 
-        reportText += `🚛 **${item.model}** (${item.plate})\n`;
-        reportText += `👤 Haydovchi: ${item.driver}\n`;
-        reportText += `💵 Berildi: ${paid.toLocaleString()} so'm\n`;
-        reportText += `🔴 Qarz: ${debt.toLocaleString()} so'm\n`;
-        reportText += `----------------------------\n`;
+        totalPaid += paid;
+        totalDebt += debt;
+
+        text += `${item.date || ''}\t${item.model}\t${item.plate}\t${item.driver}\t${paid}\t${debt}\n`;
       }
 
-      reportText += `\n💰 **JAMI BERILDI:** ${tPaid.toLocaleString()} so'm`;
-      reportText += `\n❌ **JAMI QARZDORLIK:** ${tDebt.toLocaleString()} so'm`;
+      text += `JAMI UMUMIY:\t\t\t\t${totalPaid}\t${totalDebt}`;
 
-      tg.sendData(reportText);
+      // Clipboard-ga saqlash
+      navigator.clipboard.writeText(text).then(() => {
+        alert("✅ Barcha ma'lumotlar nusxalandi!\n\nEndi Excel yoki Google Sheets'ni ochib 'Вставить' (Joylashtirish) tugmasini bosing.");
+      }).catch(err => {
+        alert("Xatolik yuz berdi: " + err);
+      });
     }
   </script>
 </body>
