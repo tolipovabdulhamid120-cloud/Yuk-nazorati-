@@ -4,11 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Yuk Nazorati Mini App</title>
-  <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- SheetJS Excel export uchun (so'nggi versiyasi) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -22,7 +19,7 @@
       --success-color: #2ecc71;
     }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: var(--bg-color);
       color: var(--text-color);
       margin: 0;
@@ -55,11 +52,7 @@
       box-sizing: border-box;
       font-size: 14px;
     }
-    #plateNumber {
-      text-transform: uppercase;
-      font-weight: bold;
-      letter-spacing: 1px;
-    }
+    #plateNumber { text-transform: uppercase; font-weight: bold; }
     .voice-btn {
       position: absolute;
       right: 5px;
@@ -83,7 +76,8 @@
       cursor: pointer;
       margin-top: 8px;
     }
-    .btn-excel { background: #27ae60; margin-bottom: 10px; }
+    .btn-excel { background: #27ae60; margin-bottom: 6px; }
+    .btn-send { background: #8e44ad; margin-bottom: 10px; }
     .btn-danger { background: var(--danger-color); }
     .btn-cancel { background: #7f8c8d; }
     
@@ -99,10 +93,7 @@
       text-align: left;
     }
     th { background-color: #f2f2f2; }
-    tfoot tr {
-      background-color: #eaf2f8;
-      font-weight: bold;
-    }
+    tfoot tr { background-color: #eaf2f8; font-weight: bold; }
     .debt-text { color: var(--danger-color); font-weight: bold; }
     .paid-text { color: var(--success-color); font-weight: bold; }
     .action-btn {
@@ -126,12 +117,12 @@
       
       <div class="form-group">
         <label>Avtomobil modeli:</label>
-        <input type="text" id="modelName" placeholder="Masalan: MAN, HOWO, KamAZ" required>
+        <input type="text" id="modelName" placeholder="Masalan: MAN, HOWO" required>
         <button type="button" class="voice-btn" onclick="startVoice('modelName')">🎙</button>
       </div>
 
       <div class="form-group">
-        <label>Avtomobil raqami (Katta harflarda):</label>
+        <label>Avtomobil raqami:</label>
         <input type="text" id="plateNumber" placeholder="01 A 777 AA" required oninput="this.value = this.value.toUpperCase()">
         <button type="button" class="voice-btn" onclick="startVoice('plateNumber')">🎙</button>
       </div>
@@ -143,12 +134,12 @@
       </div>
 
       <div class="form-group">
-        <label>Berilgan pul (so'm) - Majburiy emas:</label>
+        <label>Berilgan pul (so'm):</label>
         <input type="number" id="paidAmount" placeholder="0">
       </div>
 
       <div class="form-group">
-        <label>Qarzdorlik (so'm) - Majburiy emas:</label>
+        <label>Qarzdorlik (so'm):</label>
         <input type="number" id="debtAmount" placeholder="0">
       </div>
 
@@ -159,7 +150,10 @@
 
   <div class="card">
     <h3>Yuklamalar ro'yxati</h3>
-    <button class="btn btn-excel" onclick="exportToExcel()">📊 Excel formatida yuklab olish</button>
+    <!-- Excel tugmalari -->
+    <button class="btn btn-excel" onclick="exportToExcel()">📥 Brauzer orqali yuklab olish (.XLSX)</button>
+    <button class="btn btn-send" onclick="sendToTelegramChat()">📩 Telegram chatga hisobotni yuborish</button>
+    
     <div style="overflow-x:auto;">
       <table id="dataTable">
         <thead>
@@ -173,8 +167,7 @@
             <th>Amallar</th>
           </tr>
         </thead>
-        <tbody id="tableBody">
-        </tbody>
+        <tbody id="tableBody"></tbody>
         <tfoot>
           <tr>
             <td colspan="4" style="text-align: right;">JAMI UMUMIY:</td>
@@ -191,7 +184,6 @@
     const tg = window.Telegram.WebApp;
     tg.expand();
 
-    // Firebase sozlamasi
     const firebaseConfig = {
       databaseURL: "https://yuk-nazorati-default-rtdb.firebaseio.com/"
     };
@@ -201,11 +193,10 @@
 
     let allTruckData = {};
 
-    // OVOZLI KIRITISH
     function startVoice(inputId) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
-        alert("Qurilmangizda ovozli kiritish qo'llab-quvvatlanmaydi.");
+        alert("Ovozli kiritish qo'llab-quvvatlanmaydi.");
         return;
       }
       const recognition = new SpeechRecognition();
@@ -222,16 +213,12 @@
       };
     }
 
-    // SAQLASH
     document.getElementById('truckForm').addEventListener('submit', function(e) {
       e.preventDefault();
       
       const recordId = document.getElementById('recordId').value;
-      const paidInput = document.getElementById('paidAmount').value;
-      const debtInput = document.getElementById('debtAmount').value;
-
-      const paid = paidInput !== "" ? parseFloat(paidInput) : 0;
-      const debt = debtInput !== "" ? parseFloat(debtInput) : 0;
+      const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
+      const debt = parseFloat(document.getElementById('debtAmount').value) || 0;
 
       const recordData = {
         model: document.getElementById('modelName').value,
@@ -243,19 +230,12 @@
       };
 
       if (recordId) {
-        db.ref('trucks/' + recordId).update(recordData, (err) => {
-          if (err) alert("Xatolik: " + err.message);
-          else resetForm();
-        });
+        db.ref('trucks/' + recordId).update(recordData, resetForm);
       } else {
-        db.ref('trucks').push(recordData, (err) => {
-          if (err) alert("Xatolik: " + err.message);
-          else resetForm();
-        });
+        db.ref('trucks').push(recordData, resetForm);
       }
     });
 
-    // ONLINE O'QISH
     db.ref('trucks').on('value', (snapshot) => {
       const tbody = document.getElementById('tableBody');
       tbody.innerHTML = '';
@@ -266,7 +246,6 @@
 
       for (let id in allTruckData) {
         const item = allTruckData[id];
-        
         const paid = item.paidAmount || 0;
         const debt = item.debtAmount || 0;
 
@@ -282,7 +261,7 @@
           <td class="paid-text">${paid > 0 ? paid.toLocaleString() + " so'm" : '-'}</td>
           <td class="debt-text">${debt > 0 ? debt.toLocaleString() + " so'm" : '-'}</td>
           <td class="actions-cell">
-            <button class="action-btn btn-excel" onclick="editRecord('${id}')">✏️️</button>
+            <button class="action-btn btn-excel" onclick="editRecord('${id}')">✏️</button>
             <button class="action-btn btn-danger" onclick="deleteRecord('${id}')">🗑️</button>
           </td>
         `;
@@ -293,26 +272,22 @@
       document.getElementById('totalDebtSum').innerText = grandTotalDebt.toLocaleString() + " so'm";
     });
 
-    // TAHRIRLASH
     window.editRecord = function(id) {
-      db.ref('trucks/' + id).once('value', (snapshot) => {
-        const item = snapshot.val();
-        document.getElementById('recordId').value = id;
-        document.getElementById('modelName').value = item.model;
-        document.getElementById('plateNumber').value = item.plate;
-        document.getElementById('driverName').value = item.driver;
-        document.getElementById('paidAmount').value = item.paidAmount !== 0 ? item.paidAmount : '';
-        document.getElementById('debtAmount').value = item.debtAmount !== 0 ? item.debtAmount : '';
-        
-        document.getElementById('formTitle').innerText = "Ma'lumotni tahrirlash";
-        document.getElementById('saveBtn').innerText = "Yangilash";
-        document.getElementById('cancelBtn').style.display = "block";
-      });
+      const item = allTruckData[id];
+      document.getElementById('recordId').value = id;
+      document.getElementById('modelName').value = item.model;
+      document.getElementById('plateNumber').value = item.plate;
+      document.getElementById('driverName').value = item.driver;
+      document.getElementById('paidAmount').value = item.paidAmount || '';
+      document.getElementById('debtAmount').value = item.debtAmount || '';
+      
+      document.getElementById('formTitle').innerText = "Ma'lumotni tahrirlash";
+      document.getElementById('saveBtn').innerText = "Yangilash";
+      document.getElementById('cancelBtn').style.display = "block";
     };
 
-    // O'CHIRISH
     window.deleteRecord = function(id) {
-      if (confirm("Haqiqatan ham ushbu ma'lumotni o'chirmoqchisiz?")) {
+      if (confirm("O'chirmoqchisiz?")) {
         db.ref('trucks/' + id).remove();
       }
     };
@@ -325,51 +300,81 @@
       document.getElementById('cancelBtn').style.display = "none";
     }
 
-    // EXCELGA EKSPORT QILISH (TO'G'RILANDI)
+    // 1. BRAUZERDA EXCEL YUKLASH (URL YARATISH ORQALI)
     function exportToExcel() {
       if (Object.keys(allTruckData).length === 0) {
-        alert("Yuklab olish uchun ma'lumot mavjud emas!");
+        alert("Ma'lumot yo'q!");
         return;
       }
 
       const excelData = [];
-      let totalPaid = 0;
-      let totalDebt = 0;
-
       for (let id in allTruckData) {
         const item = allTruckData[id];
-        const paid = item.paidAmount || 0;
-        const debt = item.debtAmount || 0;
-        
-        totalPaid += paid;
-        totalDebt += debt;
-
         excelData.push({
           "Sana": item.date || '',
-          "Avto Model": item.model || '',
-          "Avto Raqam": item.plate || '',
+          "Model": item.model || '',
+          "Nomer": item.plate || '',
           "Haydovchi": item.driver || '',
-          "Berilgan pul (so'm)": paid,
-          "Qarzdorlik (so'm)": debt
+          "Berilgan pul": item.paidAmount || 0,
+          "Qarzdorlik": item.debtAmount || 0
         });
       }
-
-      // Jami qatorini qo'shish
-      excelData.push({
-        "Sana": "",
-        "Avto Model": "",
-        "Avto Raqam": "",
-        "Haydovchi": "JAMI UMUMIY:",
-        "Berilgan pul (so'm)": totalPaid,
-        "Qarzdorlik (so'm)": totalDebt
-      });
 
       const worksheet = XLSX.utils.json_to_sheet(excelData);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Yuklar");
 
-      const fileName = `Yuk_Nazorati_${new Date().toISOString().slice(0,10)}.xlsx`;
-      XLSX.writeFile(workbook, fileName);
+      // Telegram Mini App xavfsizligini chetlab o'tib brauzer orqali yuklash
+      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'binary' });
+      function s2ab(s) {
+        const buf = new ArrayBuffer(s.length);
+        const view = new Uint8Array(buf);
+        for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
+        return buf;
+      }
+      
+      const blob = new Blob([s2ab(wbout)], { type: "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+      
+      // Tashqi brauzerda yuklash havolasini ochish
+      if (tg && tg.openLink) {
+        tg.openLink(url);
+      } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Yuk_Nazorati_${new Date().toISOString().slice(0,10)}.xlsx`;
+        a.click();
+      }
+    }
+
+    // 2. TELEGRAM CHATGA HISOBOT YUBORISH
+    function sendToTelegramChat() {
+      if (Object.keys(allTruckData).length === 0) {
+        alert("Ma'lumot yo'q!");
+        return;
+      }
+
+      let reportText = "📊 **YUK NAZORATI HISOBOTI**\n\n";
+      let tPaid = 0, tDebt = 0;
+
+      for (let id in allTruckData) {
+        const item = allTruckData[id];
+        const paid = item.paidAmount || 0;
+        const debt = item.debtAmount || 0;
+        tPaid += paid;
+        tDebt += debt;
+
+        reportText += `🚛 **${item.model}** (${item.plate})\n`;
+        reportText += `👤 Haydovchi: ${item.driver}\n`;
+        reportText += `💵 Berildi: ${paid.toLocaleString()} so'm\n`;
+        reportText += `🔴 Qarz: ${debt.toLocaleString()} so'm\n`;
+        reportText += `----------------------------\n`;
+      }
+
+      reportText += `\n💰 **JAMI BERILDI:** ${tPaid.toLocaleString()} so'm`;
+      reportText += `\n❌ **JAMI QARZDORLIK:** ${tDebt.toLocaleString()} so'm`;
+
+      tg.sendData(reportText);
     }
   </script>
 </body>
