@@ -9,8 +9,8 @@
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  <!-- OCR (Skanerlash) uchun Tesseract.js -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <!-- OCR Skanerlash uchun Tezkor Tesseract.js -->
+  <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
 
   <style>
     :root {
@@ -50,7 +50,7 @@
     input {
       width: 100%;
       padding: 11px;
-      padding-right: 80px;
+      padding-right: 85px;
       border: 1px solid #cbd5e1;
       border-radius: 8px;
       box-sizing: border-box;
@@ -77,6 +77,9 @@
       padding: 6px 10px;
       font-size: 14px;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .btn {
       width: 100%;
@@ -126,31 +129,26 @@
     .btn-edit { background: var(--warning-color); }
     .btn-del { background: var(--danger-color); }
 
-    /* Kamera modali */
-    #camModal {
+    /* Skanerlash Holati Modal */
+    #ocrStatusModal {
       display: none;
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.88);
+      background: rgba(0,0,0,0.7);
       z-index: 1000;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 16px;
+      color: white;
     }
-    .video-container {
-      position: relative;
-      width: 100%;
-      max-width: 400px;
-    }
-    #video { width: 100%; border-radius: 12px; }
-    .scan-guide {
-      position: absolute;
-      top: 30%; left: 10%; right: 10%; height: 35%;
-      border: 2px dashed #f1c40f;
-      border-radius: 8px;
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
-      pointer-events: none;
+    .status-box {
+      background: #fff;
+      color: #333;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+      width: 80%;
+      max-width: 300px;
     }
   </style>
 </head>
@@ -175,7 +173,12 @@
         <input type="text" id="plate" placeholder="01A777AA" required oninput="this.value = this.value.toUpperCase().replace(/\s+/g, '')">
         <div class="input-btn-group">
           <button type="button" class="input-btn" onclick="startVoice('plate')">🎙</button>
-          <button type="button" class="input-btn" onclick="openCamera()">📷</button>
+          
+          <!-- KAMERA TUGMASI (Mobil moslashuvchan usul) -->
+          <label class="input-btn" style="margin:0;">
+            📷
+            <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;" onchange="processImage(this)">
+          </label>
         </div>
       </div>
 
@@ -235,18 +238,11 @@
     </div>
   </div>
 
-  <!-- KAMERA MODALI (SKANERLASH) -->
-  <div id="camModal">
-    <h3 style="color:white; margin-bottom: 8px;">Raqamni sariq ramkaga tuting</h3>
-    <div class="video-container">
-      <video id="video" autoplay playsinline></video>
-      <div class="scan-guide"></div>
-    </div>
-    <canvas id="canvas" style="display:none;"></canvas>
-    <p id="ocrStatus" style="color:#f1c40f; margin: 10px 0; font-size: 13px; text-align:center; min-height: 20px;"></p>
-    <div class="flex-gap" style="width: 100%; max-width: 400px;">
-      <button class="btn btn-green" id="scanBtn" onclick="captureAndScan()">Skanerlash 📸</button>
-      <button class="btn btn-cancel" onclick="closeCamera()">Yopish</button>
+  <!-- SKANERLASH YUKLANISH MODALI -->
+  <div id="ocrStatusModal">
+    <div class="status-box">
+      <h4 style="margin-top:0;">🔍 Skanerlanmoqda...</h4>
+      <p id="statusText" style="font-size:13px; color:#666;">Rasm tahlil qilinmoqda, kuting...</p>
     </div>
   </div>
 
@@ -279,6 +275,46 @@
         if (inputId === 'plate') text = text.toUpperCase().replace(/\s+/g, '');
         document.getElementById(inputId).value = text;
       };
+    }
+
+    // RASMDAN MASHINA RAQAMINI SKANERLASH (OCR)
+    function processImage(input) {
+      if (!input.files || !input.files[0]) return;
+
+      const file = input.files[0];
+      const modal = document.getElementById('ocrStatusModal');
+      const statusText = document.getElementById('statusText');
+
+      modal.style.display = 'flex';
+      statusText.innerText = "Rasm tahlil qilinmoqda...";
+
+      Tesseract.recognize(
+        file,
+        'eng',
+        { logger: m => {
+            if(m.status === 'recognizing text') {
+              statusText.innerText = `Aniqlanmoqda: ${Math.round(m.progress * 100)}%`;
+            }
+          } 
+        }
+      ).then(({ data: { text } }) => {
+        modal.style.display = 'none';
+        
+        // Faqat Lotin harflari va sonlarni ajratib olish
+        const cleanedText = text.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+        if (cleanedText.length >= 4) {
+          document.getElementById('plate').value = cleanedText;
+          alert("✅ Raqam topildi: " + cleanedText);
+        } else {
+          alert("❌ Raqamni aniq o'qib bo'lmadi. Raqamga yaqinroq olib qayta rasmga oling.");
+        }
+        input.value = ''; // Inputni tozalash
+      }).catch(err => {
+        modal.style.display = 'none';
+        alert("❌ Skanerlashda xatolik yuz berdi. Internetni tekshiring.");
+        input.value = '';
+      });
     }
 
     // FORM YUBORISH (SAQLASH / YANGILASH)
@@ -434,84 +470,6 @@
       navigator.clipboard.writeText(text).then(() => {
         alert("✅ Barcha ma'lumotlar nusxalandi!\nExcel'ga o'tib 'Joylashtirish' (Paste) tugmasini bosing.");
       });
-    }
-
-    // KAMERA VA OCR (KUCHAYTIRILGAN RAQAM SKANERI)
-    let videoStream = null;
-
-    async function openCamera() {
-      const modal = document.getElementById('camModal');
-      const video = document.getElementById('video');
-      modal.style.display = 'flex';
-      document.getElementById('ocrStatus').innerText = "Kamera tayyorlanmoqda...";
-
-      try {
-        videoStream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        });
-        video.srcObject = videoStream;
-        document.getElementById('ocrStatus').innerText = "Raqamni sariq ramkaga yaqinroq tuting va 'Skanerlash'ni bosing.";
-      } catch (err) {
-        alert("Kameraga kirib bo'lmadi. Kamera ruxsati berilganini tekshiring.");
-        closeCamera();
-      }
-    }
-
-    function closeCamera() {
-      if (videoStream) {
-        videoStream.getTracks().forEach(track => track.stop());
-      }
-      document.getElementById('camModal').style.display = 'none';
-    }
-
-    async function captureAndScan() {
-      const video = document.getElementById('video');
-      const canvas = document.getElementById('canvas');
-      const status = document.getElementById('ocrStatus');
-      const scanBtn = document.getElementById('scanBtn');
-      
-      if (!video.videoWidth) {
-        status.innerText = "❌ Kamera tayyor emas, biroz kuting...";
-        return;
-      }
-
-      scanBtn.disabled = true;
-      status.innerText = "⏳ Skanerlanmoqda, kuting...";
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      try {
-        // Tesseract.js v5 eng so'nggi va tezkor yuklash
-        const worker = await Tesseract.createWorker('eng');
-        await worker.setParameters({
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-        });
-
-        const { data: { text } } = await worker.recognize(canvas.toDataURL('image/png'));
-        await worker.terminate();
-
-        const cleanedText = text.replace(/[^A-Z0-9]/g, '').trim();
-
-        if (cleanedText.length >= 4) {
-          document.getElementById('plate').value = cleanedText;
-          alert("✅ Raqam aniqlandi: " + cleanedText);
-          closeCamera();
-        } else {
-          status.innerText = "❌ Aniq o'qib bo'lmadi. Yaqinroq tutib, qayta bosing.";
-        }
-      } catch (err) {
-        console.error(err);
-        status.innerText = "❌ Internet yoki o'qishda xatolik yuz berdi.";
-      } finally {
-        scanBtn.disabled = false;
-      }
     }
 
     // Dastur boshlanganda bugungi kun ma'lumotlarini yuklash
