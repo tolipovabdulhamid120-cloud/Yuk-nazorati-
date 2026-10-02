@@ -1,129 +1,476 @@
 <!DOCTYPE html>
 <html lang="uz">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Yuk Nazorati</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-<style>
-body{font-family:Arial;background:#f4f6f9;margin:0;padding:10px}
-.card{background:#fff;padding:15px;border-radius:10px;margin-bottom:15px;box-shadow:0 2px 6px rgba(0,0,0,0.1)}
-input{width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;margin-top:4px}
-label{font-weight:bold;font-size:13px}
-.btn{width:100%;padding:11px;border:none;border-radius:6px;background:#2481cc;color:#fff;font-weight:bold;margin-top:8px}
-.btn2{background:#27ae60}.btn3{background:#7f8c8d}.btn4{background:#e74c3c;padding:5px 8px;font-size:12px}
-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
-th,td{border:1px solid #ddd;padding:6px;text-align:left}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yuk Nazorati Mini App</title>
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <!-- OCR (Skanerlash) uchun Tesseract.js -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #f4f6f9;
+      --card-bg: #ffffff;
+      --text-color: #2c3e50;
+      --primary-color: #2481cc;
+      --success-color: #27ae60;
+      --danger-color: #e74c3c;
+      --warning-color: #f39c12;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 12px;
+    }
+    .card {
+      background: var(--card-bg);
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+      margin-bottom: 16px;
+    }
+    h2, h3 { margin-top: 0; color: var(--primary-color); font-size: 18px; }
+    .form-group {
+      margin-bottom: 12px;
+      position: relative;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    input {
+      width: 100%;
+      padding: 11px;
+      padding-right: 45px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-size: 14px;
+      outline: none;
+    }
+    input:focus { border-color: var(--primary-color); }
+    #plate {
+      text-transform: uppercase;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+    .input-btn {
+      position: absolute;
+      right: 6px;
+      top: 25px;
+      background: #e2e8f0;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .btn {
+      width: 100%;
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .btn-green { background: var(--success-color); }
+    .btn-cancel { background: #7f8c8d; }
+    .btn-sm {
+      padding: 8px 12px;
+      font-size: 12px;
+      margin-top: 0;
+    }
+
+    .flex-gap { display: flex; gap: 8px; margin-bottom: 10px; }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 12px;
+    }
+    th, td {
+      border: 1px solid #e2e8f0;
+      padding: 8px;
+      text-align: left;
+    }
+    th { background-color: #f8fafc; color: #64748b; font-weight: 600; }
+    tfoot tr { background-color: #eff6ff; font-weight: bold; }
+    .debt-text { color: var(--danger-color); font-weight: bold; }
+    .paid-text { color: var(--success-color); font-weight: bold; }
+    .action-btn {
+      padding: 4px 8px;
+      font-size: 11px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: white;
+    }
+    .btn-edit { background: var(--warning-color); }
+    .btn-del { background: var(--danger-color); }
+
+    /* Kamera modali */
+    #camModal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 1000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #video { width: 100%; max-width: 400px; border-radius: 12px; }
+  </style>
 </head>
 <body>
-<div class="card">
-<h3 id="title">Yangi yuk</h3>
-<form id="form">
-<input type="hidden" id="rid">
-<label>Model</label><input id="model" required>
-<label>Nomer</label><input id="plate" required>
-<label>Berilgan pul</label><input type="number" id="paid">
-<label>Qarzdorlik</label><input type="number" id="debt">
-<button type="submit" class="btn" id="saveBtn">Saqlash</button>
-<button type="button" class="btn btn3" id="cancelBtn" style="display:none" onclick="resetF()">Bekor qilish</button>
-</form>
-</div>
 
-<div class="card">
-<h3>Ro'yxat</h3>
-<input type="date" id="dateFilter" style="width:60%">
-<button class="btn" style="width:35%;display:inline-block" onclick="loadByCal()">Ko'rish</button>
-<div style="display:flex;gap:6px;margin-top:8px">
-<button class="btn" style="flex:1" onclick="loadToday()">Bugun</button>
-<button class="btn btn3" style="flex:1" onclick="loadAll()">Barchasi</button>
-</div>
-<button class="btn btn2" onclick="copyEx()">Excel uchun nusxalash</button>
-<div style="overflow-x:auto">
-<table><thead><tr><th>Sana</th><th>Model</th><th>Nomer</th><th>Berilgan</th><th>Qarz</th><th>Amal</th></tr></thead><tbody id="tbody"></tbody><tfoot><tr><th colspan=3>JAMI</th><th id="tp">0</th><th id="td">0</th><th></th></tr></tfoot></table>
-</div>
-</div>
+  <!-- QO'SHISH / TAHRIRLASH FORMASI -->
+  <div class="card">
+    <h2 id="formTitle">🚛 Yangi yuk qo'shish</h2>
+    <form id="truckForm">
+      <input type="hidden" id="recordId">
+      
+      <div class="form-group">
+        <label>Avtomobil modeli:</label>
+        <input type="text" id="model" placeholder="Masalan: MAN, HOWO, KamAZ" required>
+        <button type="button" class="input-btn" onclick="startVoice('model')">🎙</button>
+      </div>
 
-<script>
-var tg=window.Telegram.WebApp; if(tg) tg.expand();
-firebase.initializeApp({databaseURL:"https://yuk-nazorati-default-rtdb.firebaseio.com/"});
-var db=firebase.database();
-var allData={};
-var curRef=null;
+      <div class="form-group">
+        <label>Avtomobil raqami:</label>
+        <input type="text" id="plate" placeholder="01A777AA" required oninput="this.value = this.value.toUpperCase().replace(/\s+/g, '')">
+        <button type="button" class="input-btn" style="right: 45px;" onclick="startVoice('plate')">🎙</button>
+        <button type="button" class="input-btn" onclick="openCamera()">📷</button>
+      </div>
 
-function getToday(){ return new Date().toISOString().split('T')[0]; }
+      <div class="form-group">
+        <label>Berilgan pul (so'm):</label>
+        <input type="number" id="paid" placeholder="0">
+      </div>
 
-document.getElementById('form').addEventListener('submit', function(e){
- e.preventDefault();
- var now=new Date();
- var d={
-  model:document.getElementById('model').value,
-  plate:document.getElementById('plate').value.toUpperCase(),
-  paidAmount: parseFloat(document.getElementById('paid').value)||0,
-  debtAmount: parseFloat(document.getElementById('debt').value)||0,
-  date: now.toLocaleString('uz-UZ'),
-  dateKey: now.toISOString().split('T')[0],
-  timestamp: now.getTime()
- };
- var rid=document.getElementById('rid').value;
- if(rid){ db.ref('trucks/'+rid).update(d, resetF); }
- else { db.ref('trucks').push(d, resetF); }
-});
+      <div class="form-group">
+        <label>Qarzdorlik (so'm):</label>
+        <input type="number" id="debt" placeholder="0">
+      </div>
 
-function render(data){
- allData=data;
- var tbody=document.getElementById('tbody');
- tbody.innerHTML='';
- var keys=Object.keys(data);
- var tp=0, td=0;
- if(keys.length==0){ tbody.innerHTML='<tr><td colspan=6 style="text-align:center;color:#888">Ma\'lumot yo\'q</td></tr>'; }
- keys.reverse().forEach(function(id){
-  var it=data[id];
-  tp+=it.paidAmount||0; td+=it.debtAmount||0;
-  var tr=document.createElement('tr');
-  tr.innerHTML='<td>'+(it.date||'')+'</td><td>'+(it.model||'')+'</td><td><b>'+(it.plate||'')+'</b></td><td>'+(it.paidAmount||0)+'</td><td>'+(it.debtAmount||0)+'</td><td><button class="btn btn2 btn4" onclick="editR(\''+id+'\')">✏️</button><button class="btn btn4 btn4" style="background:#e74c3c" onclick="delR(\''+id+'\')">🗑️</button></td>';
-  tbody.appendChild(tr);
- });
- document.getElementById('tp').innerText=tp.toLocaleString();
- document.getElementById('td').innerText=td.toLocaleString();
-}
+      <button type="submit" class="btn" id="saveBtn">Saqlash</button>
+      <button type="button" class="btn btn-cancel" id="cancelBtn" style="display:none;" onclick="resetForm()">Bekor qilish</button>
+    </form>
+  </div>
 
-function load(key){
- if(curRef) curRef.off();
- document.getElementById('tbody').innerHTML='<tr><td colspan=6 style="text-align:center">Yuklanmoqda...</td></tr>';
- curRef=db.ref('trucks');
- curRef.on('value', function(snap){
-  var raw=snap.val()||{};
-  if(key=='all'){ render(raw); return; }
-  var filt={};
-  for(var id in raw){
-   var it=raw[id];
-   var k=it.dateKey || (it.timestamp? new Date(it.timestamp).toISOString().split('T')[0] : '');
-   if(k==key) filt[id]=it;
-  }
-  render(filt);
- });
-}
+  <!-- JADVAL VA FILTR -->
+  <div class="card">
+    <h3>📋 Yuklamalar ro'yxati</h3>
+    
+    <div class="flex-gap">
+      <input type="date" id="dateFilter" style="flex: 2;">
+      <button class="btn btn-sm" style="flex: 1;" onclick="loadByCal()">Ko'rish</button>
+    </div>
 
-function loadByCal(){ var v=document.getElementById('dateFilter').value; if(!v){alert('Sana tanlang');return;} load(v); }
-function loadToday(){ var t=getToday(); document.getElementById('dateFilter').value=t; load(t); }
-function loadAll(){ document.getElementById('dateFilter').value=''; load('all'); }
+    <div class="flex-gap">
+      <button class="btn btn-sm" onclick="loadToday()">Bugun</button>
+      <button class="btn btn-sm btn-cancel" onclick="loadAll()">Barchasi</button>
+    </div>
 
-function editR(id){
- var it=allData[id];
- document.getElementById('rid').value=id;
- document.getElementById('model').value=it.model;
- document.getElementById('plate').value=it.plate;
- document.getElementById('paid').value=it.paidAmount||'';
- document.getElementById('debt').value=it.debtAmount||'';
- document.getElementById('title').innerText='Tahrirlash';
- document.getElementById('saveBtn').innerText='Yangilash';
- document.getElementById('cancelBtn').style.display='block';
- window.scrollTo(0,0);
-}
-function delR(id){ if(confirm('O\'chirilsinmi?')) db.ref('trucks/'+id).remove(); }
-function resetF(){
- document.getElementById('form').reset();
- document.getElementById
+    <button class="btn btn-green" onclick="copyForExcel()">📋 Excel uchun jadvalni nusxalash</button>
+
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Sana</th>
+            <th>Model</th>
+            <th>Nomer</th>
+            <th>Berilgan</th>
+            <th>Qarz</th>
+            <th>Amal</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" style="text-align: right;">JAMI UMUMIY:</td>
+            <td id="totalPaidSum" class="paid-text">0</td>
+            <td id="totalDebtSum" class="debt-text">0</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- KAMERA MODALI (OCR SKANERLASH UCHUN) -->
+  <div id="camModal">
+    <h3 style="color:white; margin-bottom: 10px;">Raqamni ramka ichiga oling</h3>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <p id="ocrStatus" style="color:#f1c40f; margin: 10px 0; font-size: 13px;"></p>
+    <div class="flex-gap" style="width: 100%; max-width: 400px;">
+      <button class="btn btn-green" onclick="captureAndScan()">Skanerlash 📸</button>
+      <button class="btn btn-cancel" onclick="closeCamera()">Yopish</button>
+    </div>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    if (tg) tg.expand();
+
+    // Firebase sozlamasi
+    firebase.initializeApp({ databaseURL: "https://yuk-nazorati-default-rtdb.firebaseio.com/" });
+    const db = firebase.database();
+
+    let currentTruckData = {};
+    let curRef = null;
+
+    function getTodayKey() { return new Date().toISOString().split('T')[0]; }
+
+    // OVOZLI KIRITISH
+    function startVoice(inputId) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("Ovozli kiritish qo'llab-quvvatlanmaydi.");
+        return;
+      }
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'uz-UZ';
+      recognition.start();
+
+      recognition.onresult = function(e) {
+        let text = e.results[0][0].transcript;
+        if (inputId === 'plate') text = text.toUpperCase().replace(/\s+/g, '');
+        document.getElementById(inputId).value = text;
+      };
+    }
+
+    // FORM YUBORISH (SAQLASH / YANGILASH)
+    document.getElementById('truckForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const recordId = document.getElementById('recordId').value;
+      const now = new Date();
+
+      const recordData = {
+        model: document.getElementById('model').value,
+        plate: document.getElementById('plate').value.toUpperCase().replace(/\s+/g, ''),
+        paidAmount: parseFloat(document.getElementById('paid').value) || 0,
+        debtAmount: parseFloat(document.getElementById('debt').value) || 0,
+        date: now.toLocaleString('uz-UZ'),
+        dateKey: now.toISOString().split('T')[0],
+        timestamp: now.getTime()
+      };
+
+      if (recordId) {
+        db.ref('trucks/' + recordId).update(recordData, resetForm);
+      } else {
+        db.ref('trucks').push(recordData, resetForm);
+      }
+    });
+
+    // JADVALNI CHIZISH
+    function renderTable(data) {
+      currentTruckData = data || {};
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+
+      const keys = Object.keys(currentTruckData);
+      let grandTotalPaid = 0;
+      let grandTotalDebt = 0;
+
+      if (keys.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#888;">Ma\'lumot topilmadi</td></tr>';
+      } else {
+        // Saralash (oxirgi qo'shilganlar tepada)
+        keys.reverse().forEach(id => {
+          const item = currentTruckData[id];
+          const paid = item.paidAmount || 0;
+          const debt = item.debtAmount || 0;
+
+          grandTotalPaid += paid;
+          grandTotalDebt += debt;
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${item.date || ''}</td>
+            <td>${item.model || ''}</td>
+            <td><b>${item.plate || ''}</b></td>
+            <td class="paid-text">${paid > 0 ? paid.toLocaleString() : '-'}</td>
+            <td class="debt-text">${debt > 0 ? debt.toLocaleString() : '-'}</td>
+            <td>
+              <button class="action-btn btn-edit" onclick="editRecord('${id}')">✏️</button>
+              <button class="action-btn btn-del" onclick="deleteRecord('${id}')">🗑️️</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      document.getElementById('totalPaidSum').innerText = grandTotalPaid.toLocaleString() + " so'm";
+      document.getElementById('totalDebtSum').innerText = grandTotalDebt.toLocaleString() + " so'm";
+    }
+
+    // MA'LUMOTLARNI YUKLASH
+    function loadData(filterKey) {
+      if (curRef) curRef.off();
+      document.getElementById('tableBody').innerHTML = '<tr><td colspan="6" style="text-align:center;">Yuklanmoqda...</td></tr>';
+      
+      curRef = db.ref('trucks');
+      curRef.on('value', function(snapshot) {
+        const rawData = snapshot.val() || {};
+        if (filterKey === 'all') {
+          renderTable(rawData);
+          return;
+        }
+        
+        const filteredData = {};
+        for (let id in rawData) {
+          const item = rawData[id];
+          const k = item.dateKey || (item.timestamp ? new Date(item.timestamp).toISOString().split('T')[0] : '');
+          if (k === filterKey) filteredData[id] = item;
+        }
+        renderTable(filteredData);
+      });
+    }
+
+    function loadByCal() {
+      const val = document.getElementById('dateFilter').value;
+      if (!val) { alert('Iltimos, sana tanlang'); return; }
+      loadData(val);
+    }
+    function loadToday() {
+      const today = getTodayKey();
+      document.getElementById('dateFilter').value = today;
+      loadData(today);
+    }
+    function loadAll() {
+      document.getElementById('dateFilter').value = '';
+      loadData('all');
+    }
+
+    // TAHRIRLASH VA O'CHIRISH
+    function editRecord(id) {
+      const item = currentTruckData[id];
+      document.getElementById('recordId').value = id;
+      document.getElementById('model').value = item.model || '';
+      document.getElementById('plate').value = item.plate || '';
+      document.getElementById('paid').value = item.paidAmount || '';
+      document.getElementById('debt').value = item.debtAmount || '';
+
+      document.getElementById('formTitle').innerText = "✏️ Ma'lumotni tahrirlash";
+      document.getElementById('saveBtn').innerText = "Yangilash";
+      document.getElementById('cancelBtn').style.display = "block";
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function deleteRecord(id) {
+      if (confirm("Ushbu ma'lumotni o'chirmoqchisiz?")) {
+        db.ref('trucks/' + id).remove();
+      }
+    }
+
+    function resetForm() {
+      document.getElementById('truckForm').reset();
+      document.getElementById('recordId').value = '';
+      document.getElementById('formTitle').innerText = "🚛 Yangi yuk qo'shish";
+      document.getElementById('saveBtn').innerText = "Saqlash";
+      document.getElementById('cancelBtn').style.display = "none";
+    }
+
+    // EXCEL UCHUN NUSXALASH
+    function copyForExcel() {
+      const keys = Object.keys(currentTruckData);
+      if (keys.length === 0) { alert("Nusxalash uchun ma'lumot yo'q"); return; }
+
+      let text = "Sana\tModel\tNomer\tBerilgan pul\tQarzdorlik\n";
+      let totalP = 0, totalD = 0;
+
+      keys.forEach(id => {
+        const item = currentTruckData[id];
+        const p = item.paidAmount || 0;
+        const d = item.debtAmount || 0;
+        totalP += p; totalD += d;
+        text += `${item.date || ''}\t${item.model || ''}\t${item.plate || ''}\t${p}\t${d}\n`;
+      });
+
+      text += `JAMI:\t\t\t${totalP}\t${totalD}`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert("✅ Barcha ma'lumotlar nusxalandi!\nExcel yoki Google Sheets ga o'tib 'Joylashtirish' (Paste) tugmasini bosing.");
+      });
+    }
+
+    // KAMERA VA OCR (RAQAMNI SKANERLASH)
+    let videoStream = null;
+
+    async function openCamera() {
+      const modal = document.getElementById('camModal');
+      const video = document.getElementById('video');
+      modal.style.display = 'flex';
+      document.getElementById('ocrStatus').innerText = "Kameraga mashina raqamini ko'rsating...";
+
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" }
+        });
+        video.srcObject = videoStream;
+      } catch (err) {
+        alert("Kameraga ruxsat berilmadi yoki kamera topilmadi.");
+        closeCamera();
+      }
+    }
+
+    function closeCamera() {
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+      }
+      document.getElementById('camModal').style.display = 'none';
+    }
+
+    function captureAndScan() {
+      const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
+      const status = document.getElementById('ocrStatus');
+      
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      status.innerText = "🔍 Raqam aniqlanmoqda, kuting...";
+
+      Tesseract.recognize(canvas.toDataURL('image/png'), 'eng')
+        .then(({ data: { text } }) => {
+          // Faqat lotin harflari va raqamlarni ajratish
+          const cleanedText = text.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+          if (cleanedText.length >= 5) {
+            document.getElementById('plate').value = cleanedText;
+            alert("Topilgan raqam: " + cleanedText);
+            closeCamera();
+          } else {
+            status.innerText = "❌ Raqamni aniqroq ko'rsatib qayta urinib ko'ring.";
+          }
+        })
+        .catch(() => {
+          status.innerText = "❌ Skanerlashda xatolik yuz berdi.";
+        });
+    }
+
+    // Dastur boshlanganda bugungi kun ma'lumotlarini yuklash
+    loadToday();
+  </script>
+</body>
+</html>
