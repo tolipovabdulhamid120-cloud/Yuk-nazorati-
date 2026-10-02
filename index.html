@@ -1,26 +1,129 @@
 <!DOCTYPE html>
 <html lang="uz">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Yuk Nazorati Mini App</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  <style>
-    :root { --bg-color: #f4f6f9; --card-bg: #ffffff; --text-color: #333; --primary-color: #2481cc; --danger-color: #e74c3c; --success-color: #2ecc71; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 12px; }
-    .card { background: var(--card-bg); padding: 16px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 16px; }
-    h2, h3 { margin-top: 0; color: var(--primary-color); }
-    .form-group { margin-bottom: 12px; position: relative; }
-    label { display: block; font-size: 13px; margin-bottom: 4px; font-weight: 600; }
-    input { width: 100%; padding: 10px; padding-right: 45px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
-    #plateNumber { text-transform: uppercase; font-weight: bold; }
-    .voice-btn { position: absolute; right: 5px; top: 24px; background: #e0e0e0; border: none; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
-    .btn { width: 100%; background: var(--primary-color); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 8px; }
-    .btn-copy { background: #27ae60; }
-    .btn-danger { background: var(--danger-color); }
-    .btn-cancel { background: #7f8c8d; }
-    .filter-bar { display: flex; gap: 8px; margin-bottom: 12px; }
-    .filter-bar input[type="date"] { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size:
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yuk Nazorati</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+body{font-family:Arial;background:#f4f6f9;margin:0;padding:10px}
+.card{background:#fff;padding:15px;border-radius:10px;margin-bottom:15px;box-shadow:0 2px 6px rgba(0,0,0,0.1)}
+input{width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;margin-top:4px}
+label{font-weight:bold;font-size:13px}
+.btn{width:100%;padding:11px;border:none;border-radius:6px;background:#2481cc;color:#fff;font-weight:bold;margin-top:8px}
+.btn2{background:#27ae60}.btn3{background:#7f8c8d}.btn4{background:#e74c3c;padding:5px 8px;font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+th,td{border:1px solid #ddd;padding:6px;text-align:left}
+</style>
+</head>
+<body>
+<div class="card">
+<h3 id="title">Yangi yuk</h3>
+<form id="form">
+<input type="hidden" id="rid">
+<label>Model</label><input id="model" required>
+<label>Nomer</label><input id="plate" required>
+<label>Berilgan pul</label><input type="number" id="paid">
+<label>Qarzdorlik</label><input type="number" id="debt">
+<button type="submit" class="btn" id="saveBtn">Saqlash</button>
+<button type="button" class="btn btn3" id="cancelBtn" style="display:none" onclick="resetF()">Bekor qilish</button>
+</form>
+</div>
+
+<div class="card">
+<h3>Ro'yxat</h3>
+<input type="date" id="dateFilter" style="width:60%">
+<button class="btn" style="width:35%;display:inline-block" onclick="loadByCal()">Ko'rish</button>
+<div style="display:flex;gap:6px;margin-top:8px">
+<button class="btn" style="flex:1" onclick="loadToday()">Bugun</button>
+<button class="btn btn3" style="flex:1" onclick="loadAll()">Barchasi</button>
+</div>
+<button class="btn btn2" onclick="copyEx()">Excel uchun nusxalash</button>
+<div style="overflow-x:auto">
+<table><thead><tr><th>Sana</th><th>Model</th><th>Nomer</th><th>Berilgan</th><th>Qarz</th><th>Amal</th></tr></thead><tbody id="tbody"></tbody><tfoot><tr><th colspan=3>JAMI</th><th id="tp">0</th><th id="td">0</th><th></th></tr></tfoot></table>
+</div>
+</div>
+
+<script>
+var tg=window.Telegram.WebApp; if(tg) tg.expand();
+firebase.initializeApp({databaseURL:"https://yuk-nazorati-default-rtdb.firebaseio.com/"});
+var db=firebase.database();
+var allData={};
+var curRef=null;
+
+function getToday(){ return new Date().toISOString().split('T')[0]; }
+
+document.getElementById('form').addEventListener('submit', function(e){
+ e.preventDefault();
+ var now=new Date();
+ var d={
+  model:document.getElementById('model').value,
+  plate:document.getElementById('plate').value.toUpperCase(),
+  paidAmount: parseFloat(document.getElementById('paid').value)||0,
+  debtAmount: parseFloat(document.getElementById('debt').value)||0,
+  date: now.toLocaleString('uz-UZ'),
+  dateKey: now.toISOString().split('T')[0],
+  timestamp: now.getTime()
+ };
+ var rid=document.getElementById('rid').value;
+ if(rid){ db.ref('trucks/'+rid).update(d, resetF); }
+ else { db.ref('trucks').push(d, resetF); }
+});
+
+function render(data){
+ allData=data;
+ var tbody=document.getElementById('tbody');
+ tbody.innerHTML='';
+ var keys=Object.keys(data);
+ var tp=0, td=0;
+ if(keys.length==0){ tbody.innerHTML='<tr><td colspan=6 style="text-align:center;color:#888">Ma\'lumot yo\'q</td></tr>'; }
+ keys.reverse().forEach(function(id){
+  var it=data[id];
+  tp+=it.paidAmount||0; td+=it.debtAmount||0;
+  var tr=document.createElement('tr');
+  tr.innerHTML='<td>'+(it.date||'')+'</td><td>'+(it.model||'')+'</td><td><b>'+(it.plate||'')+'</b></td><td>'+(it.paidAmount||0)+'</td><td>'+(it.debtAmount||0)+'</td><td><button class="btn btn2 btn4" onclick="editR(\''+id+'\')">✏️</button><button class="btn btn4 btn4" style="background:#e74c3c" onclick="delR(\''+id+'\')">🗑️</button></td>';
+  tbody.appendChild(tr);
+ });
+ document.getElementById('tp').innerText=tp.toLocaleString();
+ document.getElementById('td').innerText=td.toLocaleString();
+}
+
+function load(key){
+ if(curRef) curRef.off();
+ document.getElementById('tbody').innerHTML='<tr><td colspan=6 style="text-align:center">Yuklanmoqda...</td></tr>';
+ curRef=db.ref('trucks');
+ curRef.on('value', function(snap){
+  var raw=snap.val()||{};
+  if(key=='all'){ render(raw); return; }
+  var filt={};
+  for(var id in raw){
+   var it=raw[id];
+   var k=it.dateKey || (it.timestamp? new Date(it.timestamp).toISOString().split('T')[0] : '');
+   if(k==key) filt[id]=it;
+  }
+  render(filt);
+ });
+}
+
+function loadByCal(){ var v=document.getElementById('dateFilter').value; if(!v){alert('Sana tanlang');return;} load(v); }
+function loadToday(){ var t=getToday(); document.getElementById('dateFilter').value=t; load(t); }
+function loadAll(){ document.getElementById('dateFilter').value=''; load('all'); }
+
+function editR(id){
+ var it=allData[id];
+ document.getElementById('rid').value=id;
+ document.getElementById('model').value=it.model;
+ document.getElementById('plate').value=it.plate;
+ document.getElementById('paid').value=it.paidAmount||'';
+ document.getElementById('debt').value=it.debtAmount||'';
+ document.getElementById('title').innerText='Tahrirlash';
+ document.getElementById('saveBtn').innerText='Yangilash';
+ document.getElementById('cancelBtn').style.display='block';
+ window.scrollTo(0,0);
+}
+function delR(id){ if(confirm('O\'chirilsinmi?')) db.ref('trucks/'+id).remove(); }
+function resetF(){
+ document.getElementById('form').reset();
+ document.getElementById
