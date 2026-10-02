@@ -8,7 +8,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <style>
-    :root { --bg-color: #f4f6f9; --card-bg: #ffffff; --text-color: #333333; --primary-color: #2481cc; --danger-color: #e74c3c; --success-color: #2ecc71; }
+    :root { --bg-color: #f4f6f9; --card-bg: #ffffff; --text-color: #333; --primary-color: #2481cc; --danger-color: #e74c3c; --success-color: #2ecc71; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 12px; }
    .card { background: var(--card-bg); padding: 16px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 16px; }
     h2, h3 { margin-top: 0; color: var(--primary-color); }
@@ -21,7 +21,8 @@
    .btn-copy { background: #27ae60; margin-bottom: 10px; }
    .btn-danger { background: var(--danger-color); }
    .btn-cancel { background: #7f8c8d; }
-   .filter-bar { display:flex; gap:8px; margin-bottom: 12px; }
+   .filter-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+   .filter-bar input[type="date"] { flex:1; padding: 10px; border:1px solid #ccc; border-radius: 8px; font-size: 14px; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     th { background-color: #f2f2f2; }
@@ -33,34 +34,15 @@
   </style>
 </head>
 <body>
-
   <div class="card">
     <h2 id="formTitle">Yangi yuk qo'shish</h2>
     <form id="truckForm">
       <input type="hidden" id="recordId">
-      <div class="form-group">
-        <label>Avtomobil modeli:</label>
-        <input type="text" id="modelName" placeholder="Masalan: MAN, HOWO" required>
-        <button type="button" class="voice-btn" onclick="startVoice('modelName')">🎙</button>
-      </div>
-      <div class="form-group">
-        <label>Avtomobil raqami:</label>
-        <input type="text" id="plateNumber" placeholder="01 A 777 AA" required oninput="this.value = this.value.toUpperCase()">
-        <button type="button" class="voice-btn" onclick="startVoice('plateNumber')">🎙</button>
-      </div>
-      <div class="form-group">
-        <label>Haydovchi ismi / F.I.Sh:</label>
-        <input type="text" id="driverName" placeholder="Ismini kiriting" required>
-        <button type="button" class="voice-btn" onclick="startVoice('driverName')">🎙</button>
-      </div>
-      <div class="form-group">
-        <label>Berilgan pul (so'm):</label>
-        <input type="number" id="paidAmount" placeholder="0">
-      </div>
-      <div class="form-group">
-        <label>Qarzdorlik (so'm):</label>
-        <input type="number" id="debtAmount" placeholder="0">
-      </div>
+      <div class="form-group"><label>Avtomobil modeli:</label><input type="text" id="modelName" placeholder="MAN, HOWO" required><button type="button" class="voice-btn" onclick="startVoice('modelName')">🎙</button></div>
+      <div class="form-group"><label>Avtomobil raqami:</label><input type="text" id="plateNumber" placeholder="01 A 777 AA" required oninput="this.value=this.value.toUpperCase()"><button type="button" class="voice-btn" onclick="startVoice('plateNumber')">🎙</button></div>
+      <div class="form-group"><label>Haydovchi ismi:</label><input type="text" id="driverName" placeholder="Ismini kiriting" required><button type="button" class="voice-btn" onclick="startVoice('driverName')">🎙</button></div>
+      <div class="form-group"><label>Berilgan pul (so'm):</label><input type="number" id="paidAmount" placeholder="0"></div>
+      <div class="form-group"><label>Qarzdorlik (so'm):</label><input type="number" id="debtAmount" placeholder="0"></div>
       <button type="submit" class="btn" id="saveBtn">Saqlash</button>
       <button type="button" class="btn btn-cancel" id="cancelBtn" style="display:none;" onclick="resetForm()">Bekor qilish</button>
     </form>
@@ -69,134 +51,139 @@
   <div class="card">
     <h3>Yuklamalar ro'yxati</h3>
     <div class="filter-bar">
-      <button class="btn" style="flex:1" onclick="loadData(getTodayKey())">📅 Bugun: <span id="todayLabel"></span></button>
-      <button class="btn btn-cancel" style="flex:1" onclick="loadData('all')">📂 Barcha kunlar</button>
+      <input type="date" id="dateFilter">
+      <button class="btn" style="flex:1" onclick="loadByCalendar()">📅 Ko'rish</button>
+      <button class="btn btn-cancel" style="flex:1" onclick="loadAll()">📂 Barcha kunlar</button>
     </div>
     <button class="btn btn-copy" onclick="copyTableForExcel()">📋 Excel uchun nusxalash</button>
     <div style="overflow-x:auto;">
       <table id="dataTable">
-        <thead>
-          <tr>
-            <th>Sana</th>
-            <th>Model</th>
-            <th>Nomer</th>
-            <th>Haydovchi</th>
-            <th>Berilgan pul</th>
-            <th>Qarzdorlik</th>
-            <th>Amallar</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Sana</th><th>Model</th><th>Nomer</th><th>Haydovchi</th><th>Berilgan</th><th>Qarz</th><th>Amallar</th></tr></thead>
         <tbody id="tableBody"></tbody>
-        <tfoot>
-          <tr>
-            <td colspan="4" style="text-align: right;">JAMI (ko'rinayotgan):</td>
-            <td id="totalPaidSum" class="paid-text">0 so'm</td>
-            <td id="totalDebtSum" class="debt-text">0 so'm</td>
-            <td></td>
-          </tr>
-        </tfoot>
+        <tfoot><tr><td colspan="4" style="text-align:right;">JAMI (ko'rinayotgan):</td><td id="totalPaidSum" class="paid-text">0</td><td id="totalDebtSum" class="debt-text">0</td><td></td></tr></tfoot>
       </table>
     </div>
   </div>
 
-  <script>
-    const tg = window.Telegram.WebApp;
-    tg.expand();
-    const firebaseConfig = { databaseURL: "https://yuk-nazorati-default-rtdb.firebaseio.com/" };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    let allTruckData = {};
-    let currentRef = null;
+<script>
+  const tg = window.Telegram.WebApp; tg.expand();
+  const firebaseConfig = { databaseURL: "https://yuk-nazorati-default-rtdb.firebaseio.com/" };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  let allTruckData = {};
+  let currentRef = null;
 
-    function getTodayKey() { return new Date().toISOString().split('T')[0]; }
-    document.getElementById('todayLabel').innerText = getTodayKey();
+  function getTodayKey(){ return new Date().toISOString().split('T')[0]; }
 
-    function startVoice(inputId) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) { alert("Ovozli kiritish qo'llab-quvvatlanmaydi."); return; }
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'uz-UZ';
-      recognition.start();
-      recognition.onresult = function(event) {
-        let transcript = event.results[0][0].transcript;
-        const inputElem = document.getElementById(inputId);
-        if (inputId === 'plateNumber') transcript = transcript.toUpperCase().replace(/\s+/g, '');
-        inputElem.value = transcript;
-      };
-    }
+  function startVoice(inputId){
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR){ alert("Ovozli kiritish qo'llab-quvvatlanmaydi"); return; }
+    const rec = new SR(); rec.lang='uz-UZ'; rec.start();
+    rec.onresult = e => {
+      let t = e.results[0][0].transcript;
+      if(inputId==='plateNumber') t = t.toUpperCase().replace(/\s+/g,'');
+      document.getElementById(inputId).value = t;
+    };
+  }
 
-    document.getElementById('truckForm').addEventListener('submit', function(e) {
-      e.preventDefault();
-      const recordId = document.getElementById('recordId').value;
-      const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
-      const debt = parseFloat(document.getElementById('debtAmount').value) || 0;
-      const now = new Date();
-      const recordData = {
-        model: document.getElementById('modelName').value,
-        plate: document.getElementById('plateNumber').value.toUpperCase(),
-        driver: document.getElementById('driverName').value,
-        paidAmount: paid,
-        debtAmount: debt,
-        date: now.toLocaleString('uz-UZ'),
-        dateKey: now.toISOString().split('T')[0],
-        timestamp: now.getTime()
-      };
-      if (recordId) {
-        db.ref('trucks/' + recordId).update(recordData, resetForm);
-      } else {
-        db.ref('trucks').push(recordData, resetForm);
-      }
+  document.getElementById('truckForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    const recordId = document.getElementById('recordId').value;
+    const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
+    const debt = parseFloat(document.getElementById('debtAmount').value) || 0;
+    const now = new Date();
+    const data = {
+      model: document.getElementById('modelName').value,
+      plate: document.getElementById('plateNumber').value.toUpperCase(),
+      driver: document.getElementById('driverName').value,
+      paidAmount: paid, debtAmount: debt,
+      date: now.toLocaleString('uz-UZ'),
+      dateKey: now.toISOString().split('T')[0],
+      timestamp: now.getTime()
+    };
+    if(recordId){ db.ref('trucks/'+recordId).update(data, resetForm); }
+    else{ db.ref('trucks').push(data, resetForm); }
+  });
+
+  function renderTable(dataObj){
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML=''; allTruckData = dataObj; let totalP=0, totalD=0;
+    const ids = Object.keys(dataObj);
+    if(ids.length===0){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:#888">Ma\'lumot yo\'q</td></tr>'; }
+    ids.forEach(id=>{
+      const item = dataObj[id];
+      totalP += item.paidAmount||0; totalD += item.debtAmount||0;
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${item.date||''}</td><td>${item.model}</td><td><b>${item.plate}</b></td><td>${item.driver}</td><td class="paid-text">${(item.paidAmount||0)>0?(item.paidAmount).toLocaleString()+' so\'m':'-'}</td><td class="debt-text">${(item.debtAmount||0)>0?(item.debtAmount).toLocaleString()+' so\'m':'-'}</td><td class="actions-cell"><button class="action-btn btn-copy" onclick="editRecord('${id}')">✏️</button><button class="action-btn btn-danger" onclick="deleteRecord('${id}')">🗑️</button></td>`;
+      tbody.appendChild(tr);
     });
+    document.getElementById('totalPaidSum').innerText = totalP.toLocaleString()+" so'm";
+    document.getElementById('totalDebtSum').innerText = totalD.toLocaleString()+" so'm";
+  }
 
-    function loadData(filterDate) {
-      if (currentRef) currentRef.off();
-      const tbody = document.getElementById('tableBody');
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">Yuklanmoqda...</td></tr>';
-
-      if (filterDate === 'all') {
-        currentRef = db.ref('trucks');
-      } else {
-        currentRef = db.ref('trucks').orderByChild('dateKey').equalTo(filterDate);
+  function loadByDateKey(dateKey){
+    if(currentRef) currentRef.off();
+    const tbody=document.getElementById('tableBody');
+    tbody.innerHTML='<tr><td colspan="7" style="text-align:center">Yuklanmoqda...</td></tr>';
+    currentRef = db.ref('trucks');
+    currentRef.on('value', snap=>{
+      const raw = snap.val()||{};
+      let filtered = {};
+      if(dateKey==='all'){ filtered = raw; }
+      else{
+        for(let id in raw){
+          const it = raw[id];
+          const key = it.dateKey || (it.timestamp? new Date(it.timestamp).toISOString().split('T')[0] : null);
+          if(key===dateKey) filtered[id]=it;
+        }
       }
+      renderTable(filtered);
+    });
+  }
 
-      currentRef.on('value', (snapshot) => {
-        tbody.innerHTML = '';
-        allTruckData = snapshot.val() || {};
-        let grandTotalPaid = 0, grandTotalDebt = 0;
-        for (let id in allTruckData) {
-          const item = allTruckData[id];
-          const paid = item.paidAmount || 0;
-          const debt = item.debtAmount || 0;
-          grandTotalPaid += paid;
-          grandTotalDebt += debt;
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${item.date || ''}</td>
-            <td>${item.model}</td>
-            <td><b>${item.plate}</b></td>
-            <td>${item.driver}</td>
-            <td class="paid-text">${paid > 0? paid.toLocaleString() + " so'm" : '-'}</td>
-            <td class="debt-text">${debt > 0? debt.toLocaleString() + " so'm" : '-'}</td>
-            <td class="actions-cell">
-              <button class="action-btn btn-copy" onclick="editRecord('${id}')">✏️</button>
-              <button class="action-btn btn-danger" onclick="deleteRecord('${id}')">🗑️</button>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        }
-        document.getElementById('totalPaidSum').innerText = grandTotalPaid.toLocaleString() + " so'm";
-        document.getElementById('totalDebtSum').innerText = grandTotalDebt.toLocaleString() + " so'm";
-        if(Object.keys(allTruckData).length === 0){
-          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#888">Bu kunda ma\'lumot yo\'q</td></tr>';
-        }
-      });
+  function loadByCalendar(){
+    const val = document.getElementById('dateFilter').value;
+    if(!val){ alert("Sana tanlang"); return; }
+    loadByDateKey(val);
+  }
+  function loadAll(){ document.getElementById('dateFilter').value=''; loadByDateKey('all'); }
+
+  window.editRecord = id=>{
+    const item = allTruckData[id];
+    document.getElementById('recordId').value=id;
+    document.getElementById('modelName').value=item.model;
+    document.getElementById('plateNumber').value=item.plate;
+    document.getElementById('driverName').value=item.driver;
+    document.getElementById('paidAmount').value=item.paidAmount||'';
+    document.getElementById('debtAmount').value=item.debtAmount||'';
+    document.getElementById('formTitle').innerText="Tahrirlash";
+    document.getElementById('saveBtn').innerText="Yangilash";
+    document.getElementById('cancelBtn').style.display="block";
+    window.scrollTo({top:0, behavior:'smooth'});
+  };
+  window.deleteRecord = id=>{ if(confirm("O'chirmoqchisiz?")) db.ref('trucks/'+id).remove(); };
+  function resetForm(){
+    document.getElementById('truckForm').reset();
+    document.getElementById('recordId').value='';
+    document.getElementById('formTitle').innerText="Yangi yuk qo'shish";
+    document.getElementById('saveBtn').innerText="Saqlash";
+    document.getElementById('cancelBtn').style.display="none";
+  }
+  function copyTableForExcel(){
+    if(Object.keys(allTruckData).length===0){ alert("Ma'lumot yo'q!"); return; }
+    let text="Sana\tModel\tNomer\tHaydovchi\tBerilgan pul\tQarzdorlik\n";
+    let tp=0, td=0;
+    for(let id in allTruckData){
+      const it=allTruckData[id]; tp+=it.paidAmount||0; td+=it.debtAmount||0;
+      text+=`${it.date||''}\t${it.model}\t${it.plate}\t${it.driver}\t${it.paidAmount||0}\t${it.debtAmount||0}\n`;
     }
+    text+=`JAMI:\t\t\t\t${tp}\t${td}`;
+    navigator.clipboard.writeText(text).then(()=>alert("✅ Nusxalandi! Excel'ga Ctrl+V qiling."));
+  }
 
-    window.editRecord = function(id) {
-      const item = allTruckData[id];
-      document.getElementById('recordId').value = id;
-      document.getElementById('modelName').value = item.model;
-      document.getElementById('plateNumber').value = item.plate;
-      document.getElementById('driverName').value = item.driver;
-      document.getElementById('paidAmount').value = item.paidAmount || '';
-      document.getElementById('debtAmount').value = item.debtAmount ||
+  // Boshlang'ich holat - bugun
+  document.getElementById('dateFilter').value = getTodayKey();
+  loadByDateKey(getTodayKey());
+</script>
+</body>
+</html>
