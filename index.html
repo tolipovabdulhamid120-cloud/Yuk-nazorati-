@@ -10,7 +10,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <!-- OCR (Skanerlash) uchun Tesseract.js -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <style>
     :root {
@@ -50,7 +50,7 @@
     input {
       width: 100%;
       padding: 11px;
-      padding-right: 45px;
+      padding-right: 80px;
       border: 1px solid #cbd5e1;
       border-radius: 8px;
       box-sizing: border-box;
@@ -63,10 +63,14 @@
       font-weight: bold;
       letter-spacing: 1px;
     }
-    .input-btn {
+    .input-btn-group {
       position: absolute;
       right: 6px;
       top: 25px;
+      display: flex;
+      gap: 4px;
+    }
+    .input-btn {
       background: #e2e8f0;
       border: none;
       border-radius: 6px;
@@ -127,14 +131,27 @@
       display: none;
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.85);
+      background: rgba(0,0,0,0.88);
       z-index: 1000;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      padding: 16px;
     }
-    #video { width: 100%; max-width: 400px; border-radius: 12px; }
+    .video-container {
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+    }
+    #video { width: 100%; border-radius: 12px; }
+    .scan-guide {
+      position: absolute;
+      top: 30%; left: 10%; right: 10%; height: 35%;
+      border: 2px dashed #f1c40f;
+      border-radius: 8px;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
@@ -147,25 +164,29 @@
       
       <div class="form-group">
         <label>Avtomobil modeli:</label>
-        <input type="text" id="model" placeholder="Masalan: MAN, HOWO, KamAZ" required>
-        <button type="button" class="input-btn" onclick="startVoice('model')">🎙</button>
+        <input type="text" id="model" placeholder="Masalan: MAN, HOWO, KamAZ" required style="padding-right: 45px;">
+        <div class="input-btn-group">
+          <button type="button" class="input-btn" onclick="startVoice('model')">🎙</button>
+        </div>
       </div>
 
       <div class="form-group">
         <label>Avtomobil raqami:</label>
         <input type="text" id="plate" placeholder="01A777AA" required oninput="this.value = this.value.toUpperCase().replace(/\s+/g, '')">
-        <button type="button" class="input-btn" style="right: 45px;" onclick="startVoice('plate')">🎙</button>
-        <button type="button" class="input-btn" onclick="openCamera()">📷</button>
+        <div class="input-btn-group">
+          <button type="button" class="input-btn" onclick="startVoice('plate')">🎙</button>
+          <button type="button" class="input-btn" onclick="openCamera()">📷</button>
+        </div>
       </div>
 
       <div class="form-group">
         <label>Berilgan pul (so'm):</label>
-        <input type="number" id="paid" placeholder="0">
+        <input type="number" id="paid" placeholder="0" style="padding-right: 12px;">
       </div>
 
       <div class="form-group">
         <label>Qarzdorlik (so'm):</label>
-        <input type="number" id="debt" placeholder="0">
+        <input type="number" id="debt" placeholder="0" style="padding-right: 12px;">
       </div>
 
       <button type="submit" class="btn" id="saveBtn">Saqlash</button>
@@ -178,7 +199,7 @@
     <h3>📋 Yuklamalar ro'yxati</h3>
     
     <div class="flex-gap">
-      <input type="date" id="dateFilter" style="flex: 2;">
+      <input type="date" id="dateFilter" style="flex: 2; padding-right: 12px;">
       <button class="btn btn-sm" style="flex: 1;" onclick="loadByCal()">Ko'rish</button>
     </div>
 
@@ -214,20 +235,23 @@
     </div>
   </div>
 
-  <!-- KAMERA MODALI (OCR SKANERLASH UCHUN) -->
+  <!-- KAMERA MODALI (SKANERLASH) -->
   <div id="camModal">
-    <h3 style="color:white; margin-bottom: 10px;">Raqamni ramka ichiga oling</h3>
-    <video id="video" autoplay playsinline></video>
+    <h3 style="color:white; margin-bottom: 8px;">Raqamni sariq ramkaga tuting</h3>
+    <div class="video-container">
+      <video id="video" autoplay playsinline></video>
+      <div class="scan-guide"></div>
+    </div>
     <canvas id="canvas" style="display:none;"></canvas>
-    <p id="ocrStatus" style="color:#f1c40f; margin: 10px 0; font-size: 13px;"></p>
+    <p id="ocrStatus" style="color:#f1c40f; margin: 10px 0; font-size: 13px; text-align:center; min-height: 20px;"></p>
     <div class="flex-gap" style="width: 100%; max-width: 400px;">
-      <button class="btn btn-green" onclick="captureAndScan()">Skanerlash 📸</button>
+      <button class="btn btn-green" id="scanBtn" onclick="captureAndScan()">Skanerlash 📸</button>
       <button class="btn btn-cancel" onclick="closeCamera()">Yopish</button>
     </div>
   </div>
 
   <script>
-    const tg = window.Telegram.WebApp;
+    const tg = window.Telegram ? window.Telegram.WebApp : null;
     if (tg) tg.expand();
 
     // Firebase sozlamasi
@@ -294,7 +318,6 @@
       if (keys.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#888;">Ma\'lumot topilmadi</td></tr>';
       } else {
-        // Saralash (oxirgi qo'shilganlar tepada)
         keys.reverse().forEach(id => {
           const item = currentTruckData[id];
           const paid = item.paidAmount || 0;
@@ -312,7 +335,7 @@
             <td class="debt-text">${debt > 0 ? debt.toLocaleString() : '-'}</td>
             <td>
               <button class="action-btn btn-edit" onclick="editRecord('${id}')">✏️</button>
-              <button class="action-btn btn-del" onclick="deleteRecord('${id}')">🗑️️</button>
+              <button class="action-btn btn-del" onclick="deleteRecord('${id}')">🗑</button>
             </td>
           `;
           tbody.appendChild(tr);
@@ -409,26 +432,31 @@
       text += `JAMI:\t\t\t${totalP}\t${totalD}`;
 
       navigator.clipboard.writeText(text).then(() => {
-        alert("✅ Barcha ma'lumotlar nusxalandi!\nExcel yoki Google Sheets ga o'tib 'Joylashtirish' (Paste) tugmasini bosing.");
+        alert("✅ Barcha ma'lumotlar nusxalandi!\nExcel'ga o'tib 'Joylashtirish' (Paste) tugmasini bosing.");
       });
     }
 
-    // KAMERA VA OCR (RAQAMNI SKANERLASH)
+    // KAMERA VA OCR (KUCHAYTIRILGAN RAQAM SKANERI)
     let videoStream = null;
 
     async function openCamera() {
       const modal = document.getElementById('camModal');
       const video = document.getElementById('video');
       modal.style.display = 'flex';
-      document.getElementById('ocrStatus').innerText = "Kameraga mashina raqamini ko'rsating...";
+      document.getElementById('ocrStatus').innerText = "Kamera tayyorlanmoqda...";
 
       try {
         videoStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" }
+          video: { 
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
         });
         video.srcObject = videoStream;
+        document.getElementById('ocrStatus').innerText = "Raqamni sariq ramkaga yaqinroq tuting va 'Skanerlash'ni bosing.";
       } catch (err) {
-        alert("Kameraga ruxsat berilmadi yoki kamera topilmadi.");
+        alert("Kameraga kirib bo'lmadi. Kamera ruxsati berilganini tekshiring.");
         closeCamera();
       }
     }
@@ -440,33 +468,50 @@
       document.getElementById('camModal').style.display = 'none';
     }
 
-    function captureAndScan() {
+    async function captureAndScan() {
       const video = document.getElementById('video');
       const canvas = document.getElementById('canvas');
       const status = document.getElementById('ocrStatus');
+      const scanBtn = document.getElementById('scanBtn');
       
+      if (!video.videoWidth) {
+        status.innerText = "❌ Kamera tayyor emas, biroz kuting...";
+        return;
+      }
+
+      scanBtn.disabled = true;
+      status.innerText = "⏳ Skanerlanmoqda, kuting...";
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      status.innerText = "🔍 Raqam aniqlanmoqda, kuting...";
-
-      Tesseract.recognize(canvas.toDataURL('image/png'), 'eng')
-        .then(({ data: { text } }) => {
-          // Faqat lotin harflari va raqamlarni ajratish
-          const cleanedText = text.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-          if (cleanedText.length >= 5) {
-            document.getElementById('plate').value = cleanedText;
-            alert("Topilgan raqam: " + cleanedText);
-            closeCamera();
-          } else {
-            status.innerText = "❌ Raqamni aniqroq ko'rsatib qayta urinib ko'ring.";
-          }
-        })
-        .catch(() => {
-          status.innerText = "❌ Skanerlashda xatolik yuz berdi.";
+      try {
+        // Tesseract.js v5 eng so'nggi va tezkor yuklash
+        const worker = await Tesseract.createWorker('eng');
+        await worker.setParameters({
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
         });
+
+        const { data: { text } } = await worker.recognize(canvas.toDataURL('image/png'));
+        await worker.terminate();
+
+        const cleanedText = text.replace(/[^A-Z0-9]/g, '').trim();
+
+        if (cleanedText.length >= 4) {
+          document.getElementById('plate').value = cleanedText;
+          alert("✅ Raqam aniqlandi: " + cleanedText);
+          closeCamera();
+        } else {
+          status.innerText = "❌ Aniq o'qib bo'lmadi. Yaqinroq tutib, qayta bosing.";
+        }
+      } catch (err) {
+        console.error(err);
+        status.innerText = "❌ Internet yoki o'qishda xatolik yuz berdi.";
+      } finally {
+        scanBtn.disabled = false;
+      }
     }
 
     // Dastur boshlanganda bugungi kun ma'lumotlarini yuklash
